@@ -1,10 +1,30 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import React from 'react';
-import DistilGPT2Chatbot from './src/DistilGPT2Chatbot';
-import Ads from './src/Ads';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import Home from './screens/Home';
+import Chat from './screens/Chat';
+import History from './screens/History';
+import Profile from './screens/Profile';
+const Stack = createNativeStackNavigator();
 
 const App = () => {
-  return <Ads />;
+  return (
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen
+          name="Home"
+          component={Home}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen name="Chat" component={Chat} />
+        <Stack.Screen name="History" component={History} />
+        <Stack.Screen name="Profile" component={Profile} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
 };
 
 export default App;
