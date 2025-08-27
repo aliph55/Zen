@@ -6,6 +6,7 @@ import Home from './screens/Home';
 import Chat from './screens/Chat';
 import History from './screens/History';
 import Profile from './screens/Profile';
+import Presentation from './screens/Presentation';
 const Stack = createNativeStackNavigator();
 
 const App = () => {
@@ -19,6 +20,7 @@ const App = () => {
             headerShown: false,
           }}
         />
+        <Stack.Screen name="Presentation" component={Presentation} />
         <Stack.Screen name="Chat" component={Chat} />
         <Stack.Screen name="History" component={History} />
         <Stack.Screen name="Profile" component={Profile} />
