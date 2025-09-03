@@ -7,12 +7,14 @@ import Chat from './screens/Chat';
 import History from './screens/History';
 import Profile from './screens/Profile';
 import Presentation from './screens/Presentation';
+import Signin from './screens/Signin';
+
 const Stack = createNativeStackNavigator();
 
 const App = () => {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
+      <Stack.Navigator initialRouteName="Signin">
         <Stack.Screen
           name="Home"
           component={Home}
@@ -24,6 +26,7 @@ const App = () => {
         <Stack.Screen name="Chat" component={Chat} />
         <Stack.Screen name="History" component={History} />
         <Stack.Screen name="Profile" component={Profile} />
+        <Stack.Screen name="Signin" component={Signin} />
       </Stack.Navigator>
     </NavigationContainer>
   );

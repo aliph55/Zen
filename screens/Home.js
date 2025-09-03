@@ -94,30 +94,6 @@ const Home = ({ navigation }) => {
           </TouchableOpacity>
         </LinearGradient>
 
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hızlı İşlemler</Text>
-          <View style={styles.quickActionsGrid}>
-            {quickActions.map((action, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.quickActionItem}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[
-                    styles.quickActionIcon,
-                    { backgroundColor: action.color },
-                  ]}
-                >
-                  <Icon name={action.icon} size={24} color="#FFFFFF" />
-                </View>
-                <Text style={styles.quickActionLabel}>{action.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
         {/* Stats */}
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
