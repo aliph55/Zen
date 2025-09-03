@@ -1,9 +1,35 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import React from 'react';
-import DistilGPT2Chatbot from './src/DistilGPT2Chatbot';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import Home from './screens/Home';
+import Chat from './screens/Chat';
+import History from './screens/History';
+import Profile from './screens/Profile';
+import Presentation from './screens/Presentation';
+import Signin from './screens/Signin';
+
+const Stack = createNativeStackNavigator();
 
 const App = () => {
-  return <DistilGPT2Chatbot />;
+  return (
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Signin">
+        <Stack.Screen
+          name="Home"
+          component={Home}
+          options={{
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen name="Presentation" component={Presentation} />
+        <Stack.Screen name="Chat" component={Chat} />
+        <Stack.Screen name="History" component={History} />
+        <Stack.Screen name="Profile" component={Profile} />
+        <Stack.Screen name="Signin" component={Signin} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
 };
 
 export default App;
