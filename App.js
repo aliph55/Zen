@@ -14,7 +14,9 @@ const Stack = createNativeStackNavigator();
 const App = () => {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Signin">
+      <Stack.Navigator>
+        <Stack.Screen name="Chat" component={Chat} />
+
         <Stack.Screen
           name="Home"
           component={Home}
@@ -23,7 +25,6 @@ const App = () => {
           }}
         />
         <Stack.Screen name="Presentation" component={Presentation} />
-        <Stack.Screen name="Chat" component={Chat} />
         <Stack.Screen name="History" component={History} />
         <Stack.Screen name="Profile" component={Profile} />
         <Stack.Screen name="Signin" component={Signin} />
@@ -35,3 +36,5 @@ const App = () => {
 export default App;
 
 const styles = StyleSheet.create({});
+
+// initialRouteName="Chat"
