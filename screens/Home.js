@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { use, useState } from 'react';
 import {
   Text,
   StyleSheet,
@@ -10,10 +10,13 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
+import { useSelector } from 'react-redux';
 
 const { width } = Dimensions.get('window');
 
-const Home = ({ navigation }) => {
+const Home = ({ navigation, user }) => {
+  console.log(user);
+
   const [userName] = useState('Ahmet');
   const [recentChats] = useState([
     {
@@ -49,6 +52,9 @@ const Home = ({ navigation }) => {
     { icon: 'clock', label: 'Geçmiş', color: '#F97316' },
   ];
 
+  const userInfo = useSelector(state => state.userInfo);
+  console.log('userInfo: ', userInfo);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -80,7 +86,9 @@ const Home = ({ navigation }) => {
           end={{ x: 1, y: 0 }}
           style={styles.welcomeCard}
         >
-          <Text style={styles.welcomeTitle}>Merhaba, {userName}! 👋</Text>
+          <Text style={styles.welcomeTitle}>
+            Merhaba, {userInfo?.user?.givenName} ! 👋
+          </Text>
           <Text style={styles.welcomeSubtitle}>
             Bugün size nasıl yardımcı olabilirim?
           </Text>

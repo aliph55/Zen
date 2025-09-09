@@ -8,28 +8,33 @@ import History from './screens/History';
 import Profile from './screens/Profile';
 import Presentation from './screens/Presentation';
 import Signin from './screens/Signin';
+import { store } from './redux/store';
+import { Provider } from 'react-redux';
 
 const Stack = createNativeStackNavigator();
 
 const App = () => {
   return (
-    <NavigationContainer>
-      <Stack.Navigator>
-        <Stack.Screen name="Chat" component={Chat} />
+    <Provider store={store}>
+      <NavigationContainer>
+        <Stack.Navigator initialRouteName="Signin">
+          <Stack.Screen name="Signin" component={Signin} />
 
-        <Stack.Screen
-          name="Home"
-          component={Home}
-          options={{
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen name="Presentation" component={Presentation} />
-        <Stack.Screen name="History" component={History} />
-        <Stack.Screen name="Profile" component={Profile} />
-        <Stack.Screen name="Signin" component={Signin} />
-      </Stack.Navigator>
-    </NavigationContainer>
+          <Stack.Screen
+            name="Home"
+            component={Home}
+            options={{
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen name="Profile" component={Profile} />
+
+          <Stack.Screen name="Presentation" component={Presentation} />
+          <Stack.Screen name="Chat" component={Chat} />
+          <Stack.Screen name="History" component={History} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </Provider>
   );
 };
 
