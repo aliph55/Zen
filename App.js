@@ -10,30 +10,33 @@ import Presentation from './screens/Presentation';
 import Signin from './screens/Signin';
 import { store } from './redux/store';
 import { Provider } from 'react-redux';
+import { AdsProvider } from './contexts/adsContext';
 
 const Stack = createNativeStackNavigator();
 
 const App = () => {
   return (
     <Provider store={store}>
-      <NavigationContainer>
-        <Stack.Navigator initialRouteName="Signin">
-          <Stack.Screen name="Signin" component={Signin} />
+      <AdsProvider>
+        <NavigationContainer>
+          <Stack.Navigator initialRouteName="Signin">
+            <Stack.Screen name="Signin" component={Signin} />
 
-          <Stack.Screen
-            name="Home"
-            component={Home}
-            options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen name="Profile" component={Profile} />
+            <Stack.Screen
+              name="Home"
+              component={Home}
+              options={{
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen name="Profile" component={Profile} />
 
-          <Stack.Screen name="Presentation" component={Presentation} />
-          <Stack.Screen name="Chat" component={Chat} />
-          <Stack.Screen name="History" component={History} />
-        </Stack.Navigator>
-      </NavigationContainer>
+            <Stack.Screen name="Presentation" component={Presentation} />
+            <Stack.Screen name="Chat" component={Chat} />
+            <Stack.Screen name="History" component={History} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </AdsProvider>
     </Provider>
   );
 };

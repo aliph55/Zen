@@ -1,4 +1,4 @@
-import React, { use, useState } from 'react';
+import React, { use, useEffect, useState } from 'react';
 import {
   Text,
   StyleSheet,
@@ -11,12 +11,11 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import { useSelector } from 'react-redux';
+import { useAds } from '../contexts/adsContext';
 
 const { width } = Dimensions.get('window');
 
-const Home = ({ navigation, user }) => {
-  console.log(user);
-
+const Home = ({ navigation }) => {
   const [userName] = useState('Ahmet');
   const [recentChats] = useState([
     {
@@ -53,7 +52,13 @@ const Home = ({ navigation, user }) => {
   ];
 
   const userInfo = useSelector(state => state.userInfo);
-  console.log('userInfo: ', userInfo);
+  //console.log('userInfo: ', userInfo);
+
+  useEffect(() => {
+    console.log('first');
+  }, []);
+
+  const { adsStatus, showInterstitialAd, showRewardedAd } = useAds();
 
   return (
     <View style={styles.container}>
@@ -163,12 +168,15 @@ const Home = ({ navigation, user }) => {
           <Text style={styles.activeTabLabel}>Ana Sayfa</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.tabItem}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Chat')}
+          style={styles.tabItem}
+        >
           <Icon name="message-square" size={24} color="#9CA3AF" />
           <Text style={styles.tabLabel}>Sohbet</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.tabItem}>
+        <TouchableOpacity onPress={showRewardedAd} style={styles.tabItem}>
           <Icon name="clock" size={24} color="#9CA3AF" />
           <Text style={styles.tabLabel}>Geçmiş</Text>
         </TouchableOpacity>
