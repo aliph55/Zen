@@ -20,8 +20,15 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [modelLoadError, setModelLoadError] = useState(null);
+
+  // Streaming için yeni state'ler
+  const [currentStreamingMessage, setCurrentStreamingMessage] = useState('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingComplete, setStreamingComplete] = useState(false);
+
   const sessionRef = useRef(null);
   const scrollViewRef = useRef(null);
+  const streamingMessageId = useRef(null);
 
   // Model dosyalarının yolları
   const MODEL_PATHS = {
@@ -382,21 +389,55 @@ const Chat = () => {
     }
   };
 
-  // Enhanced text generation with better repetition control
-  const generateResponse = async prompt => {
+  // Streaming token decoder
+  const decodeAndAppendToken = tokenId => {
+    if (!reverseVocab) return '';
+
+    let token = reverseVocab[tokenId] || `[${tokenId}]`;
+
+    // GPT-2 special character handling
+    token = token
+      .replace(/Ġ/g, ' ')
+      .replace(/Ċ/g, '\n')
+      .replace(/ĉ/g, '\t')
+      .replace(/Ģ/g, '')
+      .replace(/â/g, '')
+      .replace(/Ī/g, '')
+      .replace(/ľ/g, '"')
+      .replace(/Ŀ/g, '"')
+      .replace(/ŉ/g, "'")
+      .replace(/<\|endoftext\|>/g, '');
+
+    return token;
+  };
+
+  // Streaming text generation
+  const generateStreamingResponse = async prompt => {
     if (!sessionRef.current) {
       console.log('Model yüklü değil, mock response döndürülüyor');
-      const mockResponses = [
-        'Model henüz yüklenmedi. Lütfen model.onnx dosyasını assets klasörüne ekleyin.',
-        'Test modu: Bu bir örnek yanıttır.',
-        'Merhaba! Ben henüz gerçek model olmadan çalışıyorum.',
-        'Model dosyası eksik, ancak uygulama çalışıyor!',
-      ];
-      return mockResponses[Math.floor(Math.random() * mockResponses.length)];
+
+      // Mock streaming for testing
+      const mockResponse = 'Model henüz yüklenmedi. Bu bir test mesajıdır.';
+      const words = mockResponse.split(' ');
+
+      setCurrentStreamingMessage('');
+      setIsStreaming(true);
+      setStreamingComplete(false);
+
+      for (let i = 0; i < words.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const currentText = words.slice(0, i + 1).join(' ');
+        setCurrentStreamingMessage(currentText);
+      }
+
+      setStreamingComplete(true);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIsStreaming(false);
+      return mockResponse;
     }
 
     try {
-      console.log('Generating response for:', prompt);
+      console.log('Generating streaming response for:', prompt);
 
       let processedPrompt = prompt || 'The weather today is';
 
@@ -424,20 +465,23 @@ const Chat = () => {
 
       console.log('Initial input tokens:', currentInputIds);
 
-      // Improved generation parameters
+      // Generation parameters
       const maxNewTokens = 30;
-      const temperature = 0.7; // Lower temperature for more focused responses
+      const temperature = 0.7;
       const topK = 50;
       const topP = 0.9;
-      const repetitionPenalty = 1.3; // Higher repetition penalty
+      const repetitionPenalty = 1.3;
       const eosTokenId = vocab?.['<|endoftext|>'] || 50256;
 
       let generatedTokens = [];
       let pastKeyValues = null;
       let pastLength = 0;
-
-      // Track recent tokens for repetition control
       let recentTokens = [...currentInputIds];
+
+      // Initialize streaming
+      setCurrentStreamingMessage('');
+      setIsStreaming(true);
+      setStreamingComplete(false);
 
       for (let step = 0; step < maxNewTokens; step++) {
         console.log(`Generation step ${step + 1}/${maxNewTokens}`);
@@ -514,15 +558,14 @@ const Chat = () => {
           lastTokenLogits[i] = logitsData[startIdx + i];
         }
 
-        // Enhanced repetition penalty - penalize tokens that appear too frequently
+        // Enhanced repetition penalty
         const recentTokenCount = {};
-        const recentWindow = recentTokens.slice(-20); // Look at last 20 tokens
+        const recentWindow = recentTokens.slice(-20);
 
         for (const token of recentWindow) {
           recentTokenCount[token] = (recentTokenCount[token] || 0) + 1;
         }
 
-        // Apply stronger penalty for frequently appearing tokens
         for (const [tokenId, count] of Object.entries(recentTokenCount)) {
           if (count > 1) {
             const penalty = Math.pow(repetitionPenalty, count);
@@ -536,22 +579,22 @@ const Chat = () => {
         }
 
         // Special handling for problematic tokens
-        const problematicTokens = [257]; // Token 257 (Ġa) causing repetition
+        const problematicTokens = [257];
         for (const tokenId of problematicTokens) {
           const countInRecent = recentWindow.filter(t => t === tokenId).length;
           if (countInRecent >= 2) {
-            lastTokenLogits[tokenId] = lastTokenLogits[tokenId] - 10.0; // Strong penalty
+            lastTokenLogits[tokenId] = lastTokenLogits[tokenId] - 10.0;
           }
         }
 
         // Temperature scaling
         const scaledLogits = lastTokenLogits.map(l => l / temperature);
 
-        // Normalize logits to prevent numerical issues
+        // Normalize logits
         const maxLogit = Math.max(...scaledLogits);
         const normalizedLogits = scaledLogits.map(l => l - maxLogit);
 
-        // Compute probabilities with numerical stability
+        // Compute probabilities
         const expLogits = normalizedLogits.map(l => Math.exp(Math.min(l, 20)));
         const sumExp = expLogits.reduce((a, b) => a + b, 0);
 
@@ -563,7 +606,6 @@ const Chat = () => {
         } else {
           const probs = expLogits.map(e => e / sumExp);
 
-          // Create probability distribution for sampling
           const probsWithIndex = [];
           for (let i = 0; i < probs.length; i++) {
             if (!isNaN(probs[i]) && probs[i] > 0) {
@@ -573,10 +615,8 @@ const Chat = () => {
 
           probsWithIndex.sort((a, b) => b.prob - a.prob);
 
-          // Top-k filtering
           let filteredProbs = probsWithIndex.slice(0, topK);
 
-          // Top-p (nucleus) filtering
           let cumSum = 0;
           let cutoffIndex = filteredProbs.length;
           for (let i = 0; i < filteredProbs.length; i++) {
@@ -588,7 +628,6 @@ const Chat = () => {
           }
           filteredProbs = filteredProbs.slice(0, cutoffIndex);
 
-          // Renormalize
           const filteredSum = filteredProbs.reduce(
             (sum, item) => sum + item.prob,
             0,
@@ -598,7 +637,6 @@ const Chat = () => {
             prob: item.prob / filteredSum,
           }));
 
-          // Sample from the distribution
           const random = Math.random();
           let cumProb = 0;
           let nextTokenId = filteredProbs[0].index;
@@ -617,15 +655,34 @@ const Chat = () => {
             })`,
           );
 
-          // Add to tracking
           recentTokens.push(nextTokenId);
           generatedTokens.push(nextTokenId);
 
-          // Keep recent tokens array manageable
           if (recentTokens.length > 50) {
             recentTokens = recentTokens.slice(-40);
           }
         }
+
+        // Streaming update - decode ALL tokens from beginning each time
+        const allDecodedTokens = generatedTokens.map(id => {
+          let token = reverseVocab[id] || `[${id}]`;
+          return token
+            .replace(/Ġ/g, ' ')
+            .replace(/Ċ/g, '\n')
+            .replace(/ĉ/g, '\t')
+            .replace(/Ģ/g, '')
+            .replace(/â/g, '')
+            .replace(/Ī/g, '')
+            .replace(/ľ/g, '"')
+            .replace(/Ŀ/g, '"')
+            .replace(/ŉ/g, "'")
+            .replace(/<\|endoftext\|>/g, '');
+        });
+
+        const fullText = allDecodedTokens.join('').trim().replace(/\s+/g, ' ');
+        setCurrentStreamingMessage(fullText);
+
+        console.log(`Streaming update - Step ${step + 1}: "${fullText}"`);
 
         // Update for next iteration
         if (step === 0) {
@@ -663,16 +720,22 @@ const Chat = () => {
           console.log('Max tokens reached');
           break;
         }
+
+        // Small delay for better UX
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // Decode generated tokens
-      let responseText = '';
+      // Final cleanup and completion
+      setStreamingComplete(true);
 
+      // Get the current streaming message for final processing
+      let finalResponse = '';
+
+      // Re-decode all tokens one more time for final response
       if (reverseVocab && generatedTokens.length > 0) {
-        const decodedTokens = generatedTokens.map(id => {
+        const finalDecodedTokens = generatedTokens.map(id => {
           let token = reverseVocab[id] || `[${id}]`;
-
-          token = token
+          return token
             .replace(/Ġ/g, ' ')
             .replace(/Ċ/g, '\n')
             .replace(/ĉ/g, '\t')
@@ -682,43 +745,43 @@ const Chat = () => {
             .replace(/ľ/g, '"')
             .replace(/Ŀ/g, '"')
             .replace(/ŉ/g, "'")
-            .replace(/Ċ+/g, '\n')
             .replace(/<\|endoftext\|>/g, '');
-
-          return token;
         });
 
-        responseText = decodedTokens
-          .join('')
-          .trim()
-          .replace(/\s+/g, ' ')
-          .replace(/\n\s*\n/g, '\n')
-          .replace(/^\s+|\s+$/g, '');
+        finalResponse = finalDecodedTokens.join('').trim().replace(/\s+/g, ' ');
 
-        // Post-process to remove repetitive patterns
-        responseText = responseText.replace(/(\b\w+\b)(\s+\1\b){3,}/g, '$1'); // Remove repeated words
-        responseText = responseText.replace(/(.)\1{5,}/g, '$1'); // Remove repeated characters
-
-        if (!responseText || responseText.length < 3) {
-          responseText =
-            'Model henüz düzgün yanıt üretemiyor. Farklı bir prompt deneyin.';
-        }
-
-        console.log('Final response:', responseText);
-      } else {
-        responseText = `Model ${generatedTokens.length} token üretti ama decode edilemedi.`;
+        // Apply final post-processing
+        finalResponse = finalResponse
+          .replace(/(\b\w+\b)(\s+\1\b){3,}/g, '$1')
+          .replace(/(.)\1{5,}/g, '$1');
       }
 
-      return responseText;
+      // Update streaming message with final version
+      if (finalResponse && finalResponse.length > 0) {
+        setCurrentStreamingMessage(finalResponse);
+        console.log('Final streaming response:', finalResponse);
+      } else {
+        finalResponse = 'Model kısa yanıt üretti.';
+        setCurrentStreamingMessage(finalResponse);
+        console.log('Empty response, using fallback');
+      }
+
+      // Wait a moment before stopping streaming indicator
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIsStreaming(false);
+
+      return finalResponse;
     } catch (error) {
       console.error('Generation error:', error);
+      setStreamingComplete(true);
+      setIsStreaming(false);
       return 'Üzgünüm, yanıt oluştururken bir hata oluştu: ' + error.message;
     }
   };
 
   // Mesaj gönder
   const sendMessage = async () => {
-    if (!inputText.trim() || isLoading) return;
+    if (!inputText.trim() || isLoading || isStreaming) return;
     if (!modelLoaded) {
       Alert.alert('Uyarı', 'Model henüz yüklenmedi. Lütfen bekleyin.');
       return;
@@ -732,25 +795,30 @@ const Chat = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputText;
     setInputText('');
-    setIsLoading(true);
+
+    // Create temporary streaming message
+    streamingMessageId.current = (Date.now() + 1).toString();
 
     try {
-      const response = await generateResponse(inputText);
+      const response = await generateStreamingResponse(currentInput);
 
+      // Replace streaming message with final message
       const aiMessage = {
-        id: (Date.now() + 1).toString(),
+        id: streamingMessageId.current,
         text: response,
         sender: 'ai',
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      setCurrentStreamingMessage('');
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
       Alert.alert('Hata', 'Yanıt oluşturulurken bir hata oluştu.');
-    } finally {
-      setIsLoading(false);
+      setIsStreaming(false);
+      setCurrentStreamingMessage('');
     }
   };
 
@@ -770,6 +838,28 @@ const Chat = () => {
         <Text style={styles.timestamp}>
           {message.timestamp.toLocaleTimeString()}
         </Text>
+      </View>
+    );
+  };
+
+  // Streaming mesaj komponenti
+  const StreamingMessage = () => {
+    if (!isStreaming) return null;
+
+    return (
+      <View
+        style={[styles.messageBubble, styles.aiBubble, styles.streamingBubble]}
+      >
+        <Text style={styles.messageText}>
+          {currentStreamingMessage}
+          {!streamingComplete && <Text style={styles.cursor}>▊</Text>}
+        </Text>
+        {streamingComplete && (
+          <View style={styles.streamingComplete}>
+            <ActivityIndicator size="small" color="#007AFF" />
+            <Text style={styles.completingText}>Tamamlanıyor...</Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -819,21 +909,20 @@ const Chat = () => {
         contentContainerStyle={styles.messagesContent}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd()}
       >
-        {messages.length === 0 && modelLoaded && (
+        {messages.length === 0 && modelLoaded && !isStreaming && (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
               Merhaba! Size nasıl yardımcı olabilirim?
             </Text>
           </View>
         )}
+
         {messages.map(message => (
           <MessageBubble key={message.id} message={message} />
         ))}
-        {isLoading && (
-          <View style={[styles.messageBubble, styles.aiBubble]}>
-            <ActivityIndicator size="small" color="#007AFF" />
-          </View>
-        )}
+
+        {/* Streaming mesajı göster */}
+        <StreamingMessage />
       </ScrollView>
 
       {/* Input alanı */}
@@ -846,18 +935,22 @@ const Chat = () => {
           placeholderTextColor="#999"
           multiline
           maxHeight={100}
-          editable={modelLoaded && !isLoading}
+          editable={modelLoaded && !isLoading && !isStreaming}
         />
         <TouchableOpacity
           style={[
             styles.sendButton,
-            (!inputText.trim() || !modelLoaded || isLoading) &&
+            (!inputText.trim() || !modelLoaded || isLoading || isStreaming) &&
               styles.sendButtonDisabled,
           ]}
           onPress={sendMessage}
-          disabled={!inputText.trim() || !modelLoaded || isLoading}
+          disabled={
+            !inputText.trim() || !modelLoaded || isLoading || isStreaming
+          }
         >
-          <Text style={styles.sendButtonText}>Gönder</Text>
+          <Text style={styles.sendButtonText}>
+            {isStreaming ? 'Üretiyor...' : 'Gönder'}
+          </Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -964,12 +1057,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
+  streamingBubble: {
+    borderColor: '#007AFF',
+    borderWidth: 2,
+    backgroundColor: '#f8f9ff',
+  },
   messageText: {
     fontSize: 16,
     color: '#333',
   },
   userText: {
     color: 'white',
+  },
+  cursor: {
+    color: '#007AFF',
+    fontWeight: 'bold',
+    fontSize: 18,
+  },
+  streamingComplete: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  completingText: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 8,
+    fontStyle: 'italic',
   },
   timestamp: {
     fontSize: 11,
