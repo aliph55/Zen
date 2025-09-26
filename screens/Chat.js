@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import * as ort from 'onnxruntime-react-native';
 import RNFS from 'react-native-fs';
+import { showRewardedAd, getAdsStatus } from '../Components/adsService';
 
 const Chat = () => {
   const [messages, setMessages] = useState([]);
@@ -29,6 +30,8 @@ const Chat = () => {
   const sessionRef = useRef(null);
   const scrollViewRef = useRef(null);
   const streamingMessageId = useRef(null);
+
+  // console.log(getAdsStatus().rewardedLoaded);
 
   // Model dosyalarının yolları
   const MODEL_PATHS = {
@@ -804,16 +807,23 @@ const Chat = () => {
     try {
       const response = await generateStreamingResponse(currentInput);
 
+      // Use the current streaming message if it's not empty, otherwise use the returned response
+      const finalMessageText = currentStreamingMessage.trim() || response;
+
       // Replace streaming message with final message
       const aiMessage = {
         id: streamingMessageId.current,
-        text: response,
+        text: finalMessageText,
         sender: 'ai',
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, aiMessage]);
+
+      // Clear streaming state
       setCurrentStreamingMessage('');
+
+      console.log('Final message added:', finalMessageText);
     } catch (error) {
       console.error('Mesaj gönderme hatası:', error);
       Alert.alert('Hata', 'Yanıt oluşturulurken bir hata oluştu.');
@@ -864,6 +874,47 @@ const Chat = () => {
     );
   };
 
+  // show ads
+  const myFunction = () => {
+    console.log('Fonksiyon her 1 dakikada bir çalışıyor!');
+
+    showRewardedAd();
+    // Burada yapmak istediğiniz işlemi gerçekleştirin
+  };
+
+  const [seconds, setSeconds] = useState(420);
+
+  // Sıfıra ulaşıldığında çalışacak fonksiyon
+  const onTimerEnd = () => {
+    console.log('Sayaç sıfıra ulaştı! İşlem yapılıyor...');
+    // Burada istediğiniz işlemi gerçekleştirin
+    // Örnek: Bildirim gönderme, API çağrısı vb.
+    setSeconds(420); // Sayaç sıfırlandığında tekrar 7 dakikaya ayarlanıyor
+    myFunction();
+  };
+
+  useEffect(() => {
+    // Her saniye sayacı azalt
+    const intervalId = setInterval(() => {
+      setSeconds(prevSeconds => {
+        if (prevSeconds <= 1) {
+          onTimerEnd(); // Sıfıra ulaştığında fonksiyonu çağır
+          return 0; // Sayaç sıfırda kalır (kısa bir an için)
+        }
+        return prevSeconds - 1; // Sayaç bir azalır
+      });
+    }, 1000); // Her saniye (1000 milisaniye)
+
+    // Component unmount olduğunda interval'i temizle
+    return () => clearInterval(intervalId);
+  }, []); // Boş bağımlılık dizisi, sadece mount sırasında çalışır
+
+  const formatTime = () => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -873,6 +924,7 @@ const Chat = () => {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>DistilGPT2 Chat</Text>
         <View style={styles.statusContainer}>
+          <Text style={styles.statusText}>{formatTime()}</Text>
           {modelLoaded ? (
             <View style={styles.statusIndicator}>
               <View style={[styles.statusDot, styles.statusDotActive]} />

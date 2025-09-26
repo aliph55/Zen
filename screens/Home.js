@@ -1,4 +1,4 @@
-import React, { use, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Text,
   StyleSheet,
@@ -16,7 +16,6 @@ import { useAds } from '../contexts/adsContext';
 const { width } = Dimensions.get('window');
 
 const Home = ({ navigation }) => {
-  const [userName] = useState('Ahmet');
   const [recentChats] = useState([
     {
       id: 1,
@@ -44,19 +43,8 @@ const Home = ({ navigation }) => {
     },
   ]);
 
-  const quickActions = [
-    { icon: 'message-square', label: 'Sohbet', color: '#3B82F6' },
-    { icon: 'zap', label: 'Yaratıcı', color: '#A855F7' },
-    { icon: 'trending-up', label: 'Analiz', color: '#10B981' },
-    { icon: 'clock', label: 'Geçmiş', color: '#F97316' },
-  ];
-
   const userInfo = useSelector(state => state.userInfo);
   //console.log('userInfo: ', userInfo);
-
-  useEffect(() => {
-    console.log('first');
-  }, []);
 
   const { adsStatus, showInterstitialAd, showRewardedAd } = useAds();
 
