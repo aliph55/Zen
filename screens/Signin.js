@@ -48,14 +48,22 @@ const Signin = ({ navigation }) => {
       const currentUser = await GoogleSignin.getCurrentUser();
 
       if (currentUser && userToken) {
-        setUserInfoLocal(currentUser);
+        const userData =
+          currentUser.user || currentUser.data?.user || currentUser;
+        setUserInfoLocal(userData);
 
-        // Redux'a kullanıcı bilgilerini kaydet
-        const userData = currentUser?.user || currentUser;
-        dispatch(setUserInfo(userData));
-
-        // TEST İÇİN: Kullanıcı giriş yapmış olsa bile aynı sayfada kal
-        // Normalde: navigateToHome(currentUser);
+        // Redux'a sadeleştirilmiş kullanıcı bilgilerini kaydet
+        dispatch(
+          setUserInfo({
+            givenName: userData.givenName || '',
+            familyName: userData.familyName || '',
+            email: userData.email || '',
+            photo: userData.photo || '',
+            name: userData.name || '',
+            id: userData.id || '',
+          }),
+        );
+        navigateToHome();
       }
     } catch (error) {
       console.log('Kullanıcı durumu kontrol hatası:', error);
@@ -64,22 +72,15 @@ const Signin = ({ navigation }) => {
     }
   };
 
-  const navigateToHome = userInfo => {
-    // Navigation stack'i resetle ve Home'a git
+  const navigateToHome = () => {
     navigation.reset({
       index: 0,
-      routes: [
-        {
-          name: 'Home', // veya 'MainTab', 'Dashboard' - sizin route isminiz
-          params: { user: userInfo },
-        },
-      ],
+      routes: [{ name: 'Home' }],
     });
   };
 
   const saveUserData = async userInfo => {
     try {
-      // User bilgilerini AsyncStorage'a kaydet
       await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
       await AsyncStorage.setItem('userToken', userInfo.idToken || 'logged_in');
       await AsyncStorage.setItem('isLoggedIn', 'true');
@@ -99,47 +100,46 @@ const Signin = ({ navigation }) => {
 
       // Giriş yap
       const signInResult = await GoogleSignin.signIn();
-
       console.log('Giriş başarılı:', signInResult);
-      setUserInfoLocal(signInResult);
 
-      // Redux'a kullanıcı bilgilerini kaydet
-      const userData = signInResult?.user || signInResult;
-      dispatch(setUserInfo(userData));
+      const userData =
+        signInResult.user || signInResult.data?.user || signInResult;
+      setUserInfoLocal(userData);
+
+      // Redux'a sadeleştirilmiş kullanıcı bilgilerini kaydet
+      dispatch(
+        setUserInfo({
+          givenName: userData.givenName || '',
+          familyName: userData.familyName || '',
+          email: userData.email || '',
+          photo: userData.photo || '',
+          name: userData.name || '',
+          id: userData.id || '',
+        }),
+      );
 
       // Token'ları al
-      try {
-        const tokens = await GoogleSignin.getTokens();
-        console.log('Access Token:', tokens.accessToken);
-        console.log('ID Token:', tokens.idToken);
+      const tokens = await GoogleSignin.getTokens();
+      console.log('Access Token:', tokens.accessToken);
+      console.log('ID Token:', tokens.idToken);
 
-        // UserInfo'ya token'ları ekle
-        signInResult.idToken = tokens.idToken;
-        signInResult.accessToken = tokens.accessToken;
-      } catch (tokenError) {
-        console.log('Token alma hatası:', tokenError);
-      }
+      // UserInfo'ya token'ları ekle
+      signInResult.idToken = tokens.idToken;
+      signInResult.accessToken = tokens.accessToken;
 
       // Kullanıcı bilgilerini kaydet
       await saveUserData(signInResult);
 
-      // Kullanıcı adını güvenli bir şekilde al
-      const userName =
-        userData?.name ||
-        userData?.givenName ||
-        userData?.email?.split('@')[0] ||
-        'Kullanıcı';
-
       // Başarılı giriş mesajı
+      const userName =
+        userData.name ||
+        userData.givenName ||
+        userData.email?.split('@')[0] ||
+        'User';
       Alert.alert(
-        'Başarılı',
-        `Hoş geldiniz, ${userName}!`,
-        [
-          {
-            text: 'Tamam',
-            onPress: () => navigateToHome(signInResult),
-          },
-        ],
+        'Success',
+        `Welcome, ${userName}!`,
+        [{ text: 'OK', onPress: () => navigateToHome() }],
         { cancelable: false },
       );
     } catch (error) {
@@ -153,40 +153,36 @@ const Signin = ({ navigation }) => {
     console.log('Sign in error:', error);
 
     if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-      Alert.alert('İptal', 'Giriş işlemi iptal edildi');
+      Alert.alert('Cancelled', 'Sign-in process was cancelled');
     } else if (error.code === statusCodes.IN_PROGRESS) {
-      Alert.alert('Devam Ediyor', 'Giriş işlemi zaten devam ediyor');
+      Alert.alert('In Progress', 'Sign-in is already in progress');
     } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
       Alert.alert(
-        'Hata',
-        'Google Play Services kullanılamıyor veya güncel değil',
+        'Error',
+        'Google Play Services is unavailable or not up to date',
       );
     } else {
-      Alert.alert('Hata', `Giriş hatası: ${error.message || error.toString()}`);
+      Alert.alert(
+        'Error',
+        `Sign-in error: ${error.message || error.toString()}`,
+      );
     }
   };
 
   const signOut = async () => {
     try {
       await GoogleSignin.signOut();
-
-      // AsyncStorage'ı temizle
       await AsyncStorage.multiRemove(['userInfo', 'userToken', 'isLoggedIn']);
-
-      // Redux state'ini temizle
       dispatch(resetUserInfo());
-
       setUserInfoLocal(null);
-      Alert.alert('Başarılı', 'Çıkış yapıldı');
-
-      // Login sayfasına geri dön
+      Alert.alert('Success', 'Logged out');
       navigation.reset({
         index: 0,
         routes: [{ name: 'Signin' }],
       });
     } catch (error) {
-      console.error('Çıkış hatası:', error);
-      Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu');
+      console.error('Logout error:', error);
+      Alert.alert('Error', 'An error occurred while logging out');
     }
   };
 
@@ -194,52 +190,39 @@ const Signin = ({ navigation }) => {
     try {
       await GoogleSignin.revokeAccess();
       await GoogleSignin.signOut();
-
-      // AsyncStorage'ı temizle
       await AsyncStorage.clear();
-
-      // Redux state'ini temizle
       dispatch(resetUserInfo());
-
       setUserInfoLocal(null);
-      Alert.alert('Başarılı', 'Erişim izinleri kaldırıldı');
-
-      // Login sayfasına geri dön
+      Alert.alert('Success', 'Access revoked');
       navigation.reset({
         index: 0,
         routes: [{ name: 'Signin' }],
       });
     } catch (error) {
-      console.error('Erişim iptali hatası:', error);
-      Alert.alert('Hata', 'Erişim iptal edilirken bir hata oluştu');
+      console.error('Revoke access error:', error);
+      Alert.alert('Error', 'An error occurred while revoking access');
     }
   };
 
   const getUserInfo = () => {
     if (!userInfo) return null;
-
-    // Farklı veri yapılarını destekle
     const user = userInfo.user || userInfo.data?.user || userInfo;
-
-    if (!user) return null;
-
     return {
-      name: user.name || user.givenName || user.displayName || 'İsimsiz',
-      email: user.email || 'Email yok',
+      name: user.name || user.givenName || user.displayName || 'Anonymous',
+      email: user.email || 'No email',
       photo: user.photo || user.photoURL || null,
-      id: user.id || user.uid || 'ID yok',
+      id: user.id || user.uid || 'No ID',
       familyName: user.familyName || '',
     };
   };
 
   const user = getUserInfo();
 
-  // İlk yükleme ekranı
   if (isLoading) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#4285F4" />
-        <Text style={styles.loadingText}>Kontrol ediliyor...</Text>
+        <Text style={styles.loadingText}>Checking...</Text>
       </View>
     );
   }
@@ -259,25 +242,24 @@ const Signin = ({ navigation }) => {
 
           <TouchableOpacity
             style={styles.continueButton}
-            onPress={() => navigateToHome(userInfo)}
+            onPress={() => navigateToHome()}
           >
-            <Text style={styles.buttonText}>Ana Sayfaya Git</Text>
+            <Text style={styles.buttonText}>Go to Home</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.button} onPress={signOut}>
-            <Text style={styles.buttonText}>Çıkış Yap</Text>
+            <Text style={styles.buttonText}>Sign Out</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.button, styles.revokeButton]}
             onPress={revokeAccess}
           >
-            <Text style={styles.buttonText}>Erişimi İptal Et</Text>
+            <Text style={styles.buttonText}>Revoke Access</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.signInContainer}>
-          {/* Özel buton tasarımı */}
           <TouchableOpacity
             style={styles.customGoogleButton}
             onPress={signIn}
@@ -290,14 +272,11 @@ const Signin = ({ navigation }) => {
                 <View style={styles.googleIconContainer}>
                   <Text style={styles.googleG}>G</Text>
                 </View>
-                <Text style={styles.googleButtonText}>
-                  Google ile Giriş Yap
-                </Text>
+                <Text style={styles.googleButtonText}>Sign in with Google</Text>
               </>
             )}
           </TouchableOpacity>
 
-          {/* Veya hazır Google butonu kullanın */}
           <GoogleSigninButton
             style={styles.googleSignInButton}
             size={GoogleSigninButton.Size.Wide}

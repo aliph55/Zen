@@ -11,67 +11,45 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
+  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { useSelector } from 'react-redux';
 
 const Profile = ({ navigation, route }) => {
-  const [user, setUser] = useState({
-    name: 'Ali Kemal',
-    email: 'ali.kemal@example.com',
-    phone: '+90 555 123 4567',
-    bio: 'React Native Developer | Coffee Enthusiast | Tech Lover',
-    avatar: 'https://i.pravatar.cc/300',
-    joinDate: 'January 2024',
-    location: 'Istanbul, Turkey',
-  });
+  const userInfo = useSelector(state => state.userInfo.user); // Get the full userInfo object
+  console.log('Profile: userInfo from Redux:', userInfo);
 
-  const [stats, setStats] = useState({
-    posts: 42,
-    followers: 1234,
-    following: 567,
+  const [user, setUser] = useState({
+    name: userInfo?.givenName || '',
+    email: userInfo?.email || '',
+    id: userInfo?.id || '',
+    photo: userInfo?.photo || '',
+    familyName: userInfo?.familyName || '',
   });
 
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [privacyModalVisible, setPrivacyModalVisible] = useState(false);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
 
-  // Menu öğeleri
+  // Menu items
   const menuItems = [
-    {
-      id: 1,
-      title: 'Edit Profile',
-      icon: 'edit',
-      iconType: 'MaterialIcons',
-      onPress: () => navigation.navigate('EditProfile'),
-    },
-    {
-      id: 2,
-      title: 'Settings',
-      icon: 'settings',
-      iconType: 'MaterialIcons',
-      onPress: () => navigation.navigate('Settings'),
-    },
     {
       id: 3,
       title: 'Privacy',
       icon: 'lock',
       iconType: 'MaterialIcons',
-      onPress: () => navigation.navigate('Privacy'),
-    },
-    {
-      id: 4,
-      title: 'Notifications',
-      icon: 'notifications',
-      iconType: 'MaterialIcons',
-      onPress: () => navigation.navigate('Notifications'),
+      onPress: () => setPrivacyModalVisible(true),
     },
     {
       id: 5,
       title: 'Help & Support',
       icon: 'help-outline',
       iconType: 'MaterialIcons',
-      onPress: () => navigation.navigate('Support'),
+      onPress: () => setSupportModalVisible(true),
     },
     {
       id: 6,
@@ -90,18 +68,19 @@ const Profile = ({ navigation, route }) => {
     },
   ];
 
-  // Kullanıcı verilerini yükle
+  // Load user data
   useEffect(() => {
     loadUserData();
-  }, []);
+  }, [userInfo]); // Re-run when userInfo changes
 
   const loadUserData = async () => {
     setIsLoading(true);
     try {
-      // AsyncStorage'dan kullanıcı verilerini al
-      const userData = await AsyncStorage.getItem('userData');
+      const userData = await AsyncStorage.getItem('userInfo');
       if (userData) {
         setUser(JSON.parse(userData));
+      } else if (userInfo) {
+        setUser(userInfo); // Use Redux data if AsyncStorage is empty
       }
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -112,14 +91,13 @@ const Profile = ({ navigation, route }) => {
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    // Verileri yenile
     setTimeout(() => {
       loadUserData();
       setRefreshing(false);
     }, 1500);
   }, []);
 
-  // Çıkış işlemi
+  // Logout function
   async function handleLogout() {
     Alert.alert(
       'Logout',
@@ -134,10 +112,9 @@ const Profile = ({ navigation, route }) => {
           onPress: async () => {
             try {
               await AsyncStorage.clear();
-              // Login sayfasına yönlendir
               navigation.reset({
                 index: 0,
-                routes: [{ name: 'Login' }],
+                routes: [{ name: 'Signin' }],
               });
             } catch (error) {
               console.error('Logout error:', error);
@@ -150,15 +127,6 @@ const Profile = ({ navigation, route }) => {
     );
   }
 
-  // Stat Card Komponenti
-  const StatCard = ({ label, value }) => (
-    <View style={styles.statCard}>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-
-  // Menu Item Komponenti
   const MenuItem = ({ item }) => (
     <TouchableOpacity
       style={styles.menuItem}
@@ -199,63 +167,82 @@ const Profile = ({ navigation, route }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profile</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
-            <MaterialIcons name="edit" size={24} color="#007AFF" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
-            <Image source={{ uri: user.avatar }} style={styles.avatar} />
-            <TouchableOpacity style={styles.cameraButton}>
-              <FontAwesome5 name="camera" size={16} color="#FFF" />
-            </TouchableOpacity>
+            <Image source={{ uri: userInfo?.photo }} style={styles.avatar} />
           </View>
 
-          <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.userBio}>{user.bio}</Text>
+          <Text style={styles.userName}>{userInfo?.name}</Text>
+          <Text style={styles.userBio}>{userInfo?.familyName}</Text>
 
           <View style={styles.userInfo}>
             <View style={styles.infoRow}>
               <MaterialIcons name="email" size={16} color="#8E8E93" />
-              <Text style={styles.infoText}>{user.email}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <MaterialIcons name="location-on" size={16} color="#8E8E93" />
-              <Text style={styles.infoText}>{user.location}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <MaterialIcons name="calendar-today" size={16} color="#8E8E93" />
-              <Text style={styles.infoText}>Joined {user.joinDate}</Text>
+              <Text style={styles.infoText}>{userInfo?.email}</Text>
             </View>
           </View>
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <StatCard label="Posts" value={stats.posts} />
-          <View style={styles.statDivider} />
-          <StatCard label="Followers" value={stats.followers} />
-          <View style={styles.statDivider} />
-          <StatCard label="Following" value={stats.following} />
-        </View>
-
-        {/* Menu Items */}
         <View style={styles.menuContainer}>
           {menuItems.map(item => (
             <MenuItem key={item.id} item={item} />
           ))}
         </View>
 
-        {/* Version Info */}
         <View style={styles.versionContainer}>
           <Text style={styles.versionText}>Version 1.0.0</Text>
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={privacyModalVisible}
+        onRequestClose={() => setPrivacyModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalHeader}>Privacy Policy</Text>
+            <Text style={styles.modalText}>
+              xAI collects user data (e.g., name, email) to provide Grok 3
+              services. Data is used to enhance your experience, secured with
+              encryption, and not shared with third parties unless required by
+              law. You can request data access or deletion via support@xa.com.
+              Last updated: October 07, 2025.
+            </Text>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setPrivacyModalVisible(false)}
+            >
+              <Text style={styles.modalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={supportModalVisible}
+        onRequestClose={() => setSupportModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalHeader}>Help & Support</Text>
+            <Text style={styles.modalText}>
+              Contact support@xa.com for assistance with Grok 3. Response time
+              is within 24 hours. Visit our FAQ page for common issues. Live
+              support coming soon. Last updated: October 07, 2025.
+            </Text>
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setSupportModalVisible(false)}
+            >
+              <Text style={styles.modalCloseText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -270,21 +257,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F2F2F7',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#000',
   },
   profileSection: {
     backgroundColor: '#FFFFFF',
@@ -304,19 +276,6 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#007AFF',
   },
-  cameraButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#007AFF',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#FFFFFF',
-  },
   userName: {
     fontSize: 24,
     fontWeight: '600',
@@ -332,7 +291,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   userInfo: {
-    width: '100%',
+    width: '100',
   },
   infoRow: {
     flexDirection: 'row',
@@ -344,33 +303,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     marginLeft: 8,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 20,
-    marginBottom: 10,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  statCard: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#E5E5EA',
   },
   menuContainer: {
     backgroundColor: '#FFFFFF',
@@ -401,6 +333,42 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 12,
     color: '#8E8E93',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 10,
+    width: '80%',
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#000',
+    marginBottom: 10,
+  },
+  modalText: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 15,
+    lineHeight: 20,
+  },
+  modalCloseButton: {
+    backgroundColor: '#007AFF',
+    padding: 10,
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 
