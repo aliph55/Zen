@@ -63,7 +63,8 @@ const Signin = ({ navigation }) => {
             id: userData.id || '',
           }),
         );
-        navigateToHome();
+        // navigateToHome();
+        navigation.navigate('Home');
       }
     } catch (error) {
       console.log('Kullanıcı durumu kontrol hatası:', error);
@@ -218,6 +219,8 @@ const Signin = ({ navigation }) => {
 
   const user = getUserInfo();
 
+  console.log(user);
+
   if (isLoading) {
     return (
       <View style={styles.container}>
@@ -231,61 +234,32 @@ const Signin = ({ navigation }) => {
     <View style={styles.container}>
       <Text style={styles.title}>Google Sign-In</Text>
 
-      {user ? (
-        <View style={styles.userContainer}>
-          {user.photo && (
-            <Image source={{ uri: user.photo }} style={styles.userPhoto} />
+      <View style={styles.signInContainer}>
+        <TouchableOpacity
+          style={styles.customGoogleButton}
+          onPress={signIn}
+          disabled={isSigninInProgress}
+        >
+          {isSigninInProgress ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <View style={styles.googleIconContainer}>
+                <Text style={styles.googleG}>G</Text>
+              </View>
+              <Text style={styles.googleButtonText}>Sign in with Google</Text>
+            </>
           )}
-          <Text style={styles.userName}>{user.name}</Text>
-          <Text style={styles.userEmail}>{user.email}</Text>
-          <Text style={styles.userId}>ID: {user.id}</Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.continueButton}
-            onPress={() => navigateToHome()}
-          >
-            <Text style={styles.buttonText}>Go to Home</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.button} onPress={signOut}>
-            <Text style={styles.buttonText}>Sign Out</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, styles.revokeButton]}
-            onPress={revokeAccess}
-          >
-            <Text style={styles.buttonText}>Revoke Access</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.signInContainer}>
-          <TouchableOpacity
-            style={styles.customGoogleButton}
-            onPress={signIn}
-            disabled={isSigninInProgress}
-          >
-            {isSigninInProgress ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <View style={styles.googleIconContainer}>
-                  <Text style={styles.googleG}>G</Text>
-                </View>
-                <Text style={styles.googleButtonText}>Sign in with Google</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <GoogleSigninButton
-            style={styles.googleSignInButton}
-            size={GoogleSigninButton.Size.Wide}
-            color={GoogleSigninButton.Color.Dark}
-            onPress={signIn}
-            disabled={isSigninInProgress}
-          />
-        </View>
-      )}
+        <GoogleSigninButton
+          style={styles.googleSignInButton}
+          size={GoogleSigninButton.Size.Wide}
+          color={GoogleSigninButton.Color.Dark}
+          onPress={signIn}
+          disabled={isSigninInProgress}
+        />
+      </View>
     </View>
   );
 };
