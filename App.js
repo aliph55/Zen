@@ -7,6 +7,7 @@ import Chat from './screens/Chat';
 import History from './screens/History';
 import Profile from './screens/Profile';
 import Presentation from './screens/Presentation';
+import Download from './screens/Download';
 import Signin from './screens/Signin';
 import { store } from './redux/store';
 import { Provider } from 'react-redux';
@@ -19,21 +20,54 @@ const App = () => {
     <Provider store={store}>
       <AdsProvider>
         <NavigationContainer>
-          <Stack.Navigator initialRouteName="Signin">
-            <Stack.Screen name="Signin" component={Signin} />
+          <Stack.Navigator initialRouteName="Download">
+            <Stack.Screen name="Download" options={{ headerShown: false }}>
+              {({ navigation }) => (
+                <Download
+                  onDownloadComplete={modelPath => {
+                    console.log('✅ Model hazır, navigasyon başlıyor...');
+                    // Signin ekranına yönlendir
+                    navigation.replace('Signin');
+                  }}
+                />
+              )}
+            </Stack.Screen>
+
+            <Stack.Screen
+              name="Signin"
+              component={Signin}
+              options={{ headerShown: false }}
+            />
 
             <Stack.Screen
               name="Home"
               component={Home}
-              options={{
-                headerShown: false,
-              }}
+              options={{ headerShown: false }}
             />
-            <Stack.Screen name="Profile" component={Profile} />
 
-            <Stack.Screen name="Presentation" component={Presentation} />
-            <Stack.Screen name="Chat" component={Chat} />
-            <Stack.Screen name="History" component={History} />
+            <Stack.Screen
+              name="Profile"
+              component={Profile}
+              options={{ headerShown: false }}
+            />
+
+            <Stack.Screen
+              name="Presentation"
+              component={Presentation}
+              options={{ headerShown: false }}
+            />
+
+            <Stack.Screen
+              name="Chat"
+              component={Chat}
+              options={{ headerShown: false }}
+            />
+
+            <Stack.Screen
+              name="History"
+              component={History}
+              options={{ headerShown: false }}
+            />
           </Stack.Navigator>
         </NavigationContainer>
       </AdsProvider>
@@ -42,7 +76,3 @@ const App = () => {
 };
 
 export default App;
-
-const styles = StyleSheet.create({});
-
-// initialRouteName="Chat"
