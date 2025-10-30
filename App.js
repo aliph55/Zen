@@ -45,11 +45,7 @@ const App = () => {
               options={{ headerShown: false }}
             />
 
-            <Stack.Screen
-              name="Profile"
-              component={Profile}
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="Profile" component={Profile} />
 
             <Stack.Screen
               name="Presentation"
@@ -57,17 +53,9 @@ const App = () => {
               options={{ headerShown: false }}
             />
 
-            <Stack.Screen
-              name="Chat"
-              component={Chat}
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="Chat" component={Chat} />
 
-            <Stack.Screen
-              name="History"
-              component={History}
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="History" component={History} />
           </Stack.Navigator>
         </NavigationContainer>
       </AdsProvider>

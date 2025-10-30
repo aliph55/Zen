@@ -125,13 +125,15 @@ export const useChatLogic = ({ route, navigation }) => {
         console.log('🔄 Model yükleniyor (path)...');
         session = await ort.InferenceSession.create(paths.model, {
           executionProviders: ['cpu'],
-          graphOptimizationLevel: 'disabled',
-          enableCpuMemArena: false,
-          enableMemPattern: false,
+          graphOptimizationLevel: 'all',
+          enableCpuMemArena: true,
+          enableMemPattern: true,
           executionMode: 'sequential',
           logSeverityLevel: 0,
           interOpNumThreads: 1,
           intraOpNumThreads: 1,
+          memoryLimit: 512 * 1024 * 1024, // 512MB limit
+          enableProfiling: false,
         });
         console.log('✅ Model path ile yüklendi');
       } catch (pathError) {
@@ -1074,11 +1076,11 @@ export const useChatLogic = ({ route, navigation }) => {
   }, []);
 
   useEffect(() => {
-    loadModel().then(() => {
-      loadVocab();
-      testAsyncStorage();
-      checkStorageSize();
-    });
+    loadModel().then(() => {});
+    loadVocab(); // Vocab yükleme de atlanabilir
+    testAsyncStorage();
+    checkStorageSize();
+    loadGroups();
     return () => {
       if (sessionRef.current) sessionRef.current.release?.();
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);

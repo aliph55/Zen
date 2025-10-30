@@ -9,10 +9,12 @@ import {
 } from 'react-native';
 import RNFS from 'react-native-fs';
 
-// DÜZELTME: Google Drive büyük dosyalar için özel URL
-const MODEL_FILE_ID = '1uKWwxPq9XcmEg6M4Y_kaUphU_7W8TbAk';
-const MODEL_DRIVE_URL = `https://drive.google.com/uc?export=download&id=${MODEL_FILE_ID}&confirm=t`;
+// AWS S3 URL
+const MODEL_URL =
+  'https://s3.eu-north-1.amazonaws.com/model.onnxugvjhb/model.onnx';
 const MODEL_LOCAL_PATH = `${RNFS.DocumentDirectoryPath}/model.onnx`;
+const EXPECTED_MODEL_SIZE = 482272438; // 482.27 MB (bytes)
+const MIN_VALID_SIZE = 480000000; // Minimum 480 MB olmalı
 
 const Download = ({ onDownloadComplete }) => {
   const [isDownloading, setIsDownloading] = useState(false);
@@ -31,12 +33,13 @@ const Download = ({ onDownloadComplete }) => {
       // Model zaten var mı kontrol et
       const exists = await RNFS.exists(MODEL_LOCAL_PATH);
       if (exists) {
-        console.log('✅ Model zaten mevcut, boyut kontrol ediliyor...');
+        console.log('✅ Model dosyası bulundu, doğrulanıyor...');
         const stat = await RNFS.stat(MODEL_LOCAL_PATH);
         console.log('📊 Mevcut model boyutu:', stat.size, 'bytes');
+        console.log('📊 Beklenen boyut:', EXPECTED_MODEL_SIZE, 'bytes');
 
-        // Dosya boyutu 0'dan büyükse geçerli
-        if (stat.size > 0) {
+        // DÜZELTME: Boyut kontrolü - minimum 480MB olmalı
+        if (stat.size >= MIN_VALID_SIZE) {
           console.log('✅ Model geçerli, indirme atlanıyor.');
           setStatusMessage('Model hazır!');
 
@@ -45,49 +48,73 @@ const Download = ({ onDownloadComplete }) => {
           } else {
             console.error('❌ onDownloadComplete fonksiyonu tanımlı değil.');
             setError('Uygulama yapılandırma hatası.');
-            Alert.alert(
-              'Hata',
-              'Uygulama yapılandırma hatası: onDownloadComplete fonksiyonu sağlanmadı.',
-            );
           }
           setIsDownloading(false);
           return;
         } else {
-          console.log('⚠️ Mevcut model dosyası boş, yeniden indiriliyor...');
+          console.log('⚠️ Model dosyası eksik veya bozuk!');
+          console.log(
+            `📊 Mevcut: ${stat.size} bytes, Beklenen: ${EXPECTED_MODEL_SIZE} bytes`,
+          );
+          console.log('🗑️ Eski dosya siliniyor...');
           await RNFS.unlink(MODEL_LOCAL_PATH);
+          console.log('✅ Eski dosya silindi, yeniden indirme başlıyor...');
         }
       }
 
       console.log('📥 Model indiriliyor...');
-      setStatusMessage('Model indiriliyor...');
+      console.log('🔗 URL:', MODEL_URL);
+      setStatusMessage(
+        'Model indiriliyor... (Bu işlem birkaç dakika sürebilir)',
+      );
 
       const downloadOptions = {
-        fromUrl: MODEL_DRIVE_URL,
+        fromUrl: MODEL_URL,
         toFile: MODEL_LOCAL_PATH,
-        background: false, // Foreground'da indir
-        progressDivider: 10, // Her %10'da bir güncelle
+        background: false,
+        progressDivider: 1, // Her %1'de güncelle
+        connectionTimeout: 30000, // 30 saniye timeout
+        readTimeout: 30000,
         begin: res => {
           console.log('🚀 İndirme başladı');
           console.log('📊 Toplam boyut:', res.contentLength, 'bytes');
           console.log('📊 Status code:', res.statusCode);
-          console.log('📊 Headers:', JSON.stringify(res.headers));
+
+          if (res.contentLength && res.contentLength < MIN_VALID_SIZE) {
+            console.warn('⚠️ Sunucu yanıt boyutu beklenenden küçük!');
+          }
         },
         progress: res => {
           const progressPercent =
             res.contentLength > 0
               ? (res.bytesWritten / res.contentLength) * 100
-              : 0;
+              : (res.bytesWritten / EXPECTED_MODEL_SIZE) * 100;
+
           setDownloadProgress(progressPercent);
-          console.log(
-            `📥 İndirildi: ${progressPercent.toFixed(1)}% (${
-              res.bytesWritten
-            }/${res.contentLength})`,
+
+          // Her %5'te bir log
+          if (Math.floor(progressPercent) % 5 === 0) {
+            console.log(
+              `📥 İndirildi: ${progressPercent.toFixed(1)}% (${(
+                res.bytesWritten /
+                1024 /
+                1024
+              ).toFixed(1)} MB / ${(res.contentLength / 1024 / 1024).toFixed(
+                1,
+              )} MB)`,
+            );
+          }
+
+          setStatusMessage(
+            `Model indiriliyor: ${progressPercent.toFixed(0)}% (${(
+              res.bytesWritten /
+              1024 /
+              1024
+            ).toFixed(1)} MB)`,
           );
-          setStatusMessage(`Model indiriliyor: ${progressPercent.toFixed(0)}%`);
         },
       };
 
-      console.log("🔗 İndirme URL'si:", MODEL_DRIVE_URL);
       const result = await RNFS.downloadFile(downloadOptions).promise;
 
       console.log('✅ İndirme tamamlandı, status code:', result.statusCode);
@@ -97,28 +124,64 @@ const Download = ({ onDownloadComplete }) => {
         // Dosya boyutunu kontrol et
         const stat = await RNFS.stat(MODEL_LOCAL_PATH);
         console.log('📊 İndirilen dosya boyutu:', stat.size, 'bytes');
+        console.log('📊 Beklenen boyut:', EXPECTED_MODEL_SIZE, 'bytes');
 
-        if (stat.size === 0) {
-          throw new Error('İndirilen dosya boş!');
-        }
-
-        // Dosya içeriğini kontrol et (ilk birkaç byte)
-        const firstBytes = await RNFS.read(MODEL_LOCAL_PATH, 100, 0, 'utf8');
-        console.log('📄 Dosya başlangıcı:', firstBytes.substring(0, 50));
-
-        // HTML sayfası mı kontrol et (Google Drive virus scan sayfası)
-        if (
-          firstBytes.includes('<!DOCTYPE html>') ||
-          firstBytes.includes('<html')
-        ) {
-          console.error('❌ Google Drive virus scan sayfası indirildi!');
+        // DÜZELTME: Minimum boyut kontrolü
+        if (stat.size < MIN_VALID_SIZE) {
+          console.error('❌ İndirilen dosya çok küçük!');
           await RNFS.unlink(MODEL_LOCAL_PATH);
           throw new Error(
-            'Google Drive büyük dosya indirme hatası. Lütfen dosyayı manuel olarak assets klasörüne koyun.',
+            `İndirilen dosya eksik! İndirilen: ${(
+              stat.size /
+              1024 /
+              1024
+            ).toFixed(1)} MB, Beklenen: ${(
+              EXPECTED_MODEL_SIZE /
+              1024 /
+              1024
+            ).toFixed(1)} MB`,
           );
         }
 
-        console.log('✅ Model başarıyla indirildi:', MODEL_LOCAL_PATH);
+        if (stat.size === 0) {
+          await RNFS.unlink(MODEL_LOCAL_PATH);
+          throw new Error('İndirilen dosya boş!');
+        }
+
+        // DÜZELTME: ONNX dosyası kontrolü (binary file)
+        try {
+          const firstBytes = await RNFS.read(
+            MODEL_LOCAL_PATH,
+            100,
+            0,
+            'base64',
+          );
+          const decoded = Buffer.from(firstBytes, 'base64').toString('utf8');
+
+          console.log(
+            '📄 Dosya başlangıcı (ilk 50 karakter):',
+            decoded.substring(0, 50),
+          );
+
+          // HTML sayfası mı kontrol et
+          if (
+            decoded.includes('<!DOCTYPE html>') ||
+            decoded.includes('<html')
+          ) {
+            console.error(
+              '❌ HTML sayfası indirildi! (Muhtemelen hata sayfası)',
+            );
+            await RNFS.unlink(MODEL_LOCAL_PATH);
+            throw new Error(
+              "Sunucu hata sayfası döndürdü. Lütfen URL'yi kontrol edin.",
+            );
+          }
+        } catch (readError) {
+          // Binary file okuma hatası normal (ONNX binary formatı)
+          console.log('ℹ️ Dosya binary format (beklenen durum)');
+        }
+
+        console.log('✅ Model başarıyla indirildi ve doğrulandı!');
         setStatusMessage('Model başarıyla indirildi!');
 
         if (typeof onDownloadComplete === 'function') {
@@ -126,21 +189,20 @@ const Download = ({ onDownloadComplete }) => {
         } else {
           console.error('❌ onDownloadComplete fonksiyonu tanımlı değil.');
           setError('Uygulama yapılandırma hatası.');
-          Alert.alert(
-            'Hata',
-            'Uygulama yapılandırma hatası: onDownloadComplete fonksiyonu sağlanmadı.',
-          );
         }
       } else {
         throw new Error(`İndirme hatası, durum kodu: ${result.statusCode}`);
       }
     } catch (err) {
       console.error('❌ Model indirme hatası:', err);
-      const errorMessage = `Model indirilemedi: ${err.message}. 
+      console.error('Hata detayı:', err.stack);
 
-Çözüm:
-1. Model dosyasını manuel olarak android/app/src/main/assets/ klasörüne koyun
-2. Veya internet bağlantınızı kontrol edin`;
+      const errorMessage = `Model indirilemedi: ${err.message}
+
+Çözüm önerileri:
+1. İnternet bağlantınızı kontrol edin (Wi-Fi önerilir)
+2. Model dosyasını manuel olarak android/app/src/main/assets/ klasörüne koyun
+3. Veya "Assets'ten Yükle" butonuna tıklayın`;
 
       setError(errorMessage);
       setStatusMessage('Hata oluştu');
@@ -161,10 +223,15 @@ const Download = ({ onDownloadComplete }) => {
   };
 
   const handleSkip = () => {
+    console.log("ℹ️ İndirme atlandı, assets'ten yükleme deneniyor...");
     if (typeof onDownloadComplete === 'function') {
       // Model yok ama devam et (assets'ten yüklenecek)
       onDownloadComplete(null);
     }
+  };
+
+  const formatBytes = bytes => {
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
   };
 
   return (
@@ -176,15 +243,24 @@ const Download = ({ onDownloadComplete }) => {
           <ActivityIndicator size="large" color="#007AFF" />
           <Text style={styles.progressText}>{statusMessage}</Text>
           {downloadProgress > 0 && (
-            <View style={styles.progressBar}>
-              <View
-                style={[styles.progressFill, { width: `${downloadProgress}%` }]}
-              />
-            </View>
+            <>
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${downloadProgress}%` },
+                  ]}
+                />
+              </View>
+              <Text style={styles.progressPercentage}>
+                {downloadProgress.toFixed(1)}%
+              </Text>
+            </>
           )}
           <Text style={styles.hint}>
-            İlk kullanımda model indirilmesi gerekiyor. Bu işlem bir kez
-            yapılır.
+            İlk kullanımda model indirilmesi gerekiyor.{'\n'}
+            Dosya boyutu: ~460 MB{'\n'}
+            Bu işlem bir kez yapılır ve birkaç dakika sürebilir.
           </Text>
         </View>
       ) : error ? (
@@ -209,6 +285,8 @@ const Download = ({ onDownloadComplete }) => {
   );
 };
 
+export default Download;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -232,6 +310,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     fontWeight: '500',
+    textAlign: 'center',
   },
   progressBar: {
     width: '80%',
@@ -246,12 +325,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#007AFF',
     borderRadius: 4,
   },
+  progressPercentage: {
+    marginTop: 8,
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#007AFF',
+  },
   hint: {
     marginTop: 20,
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
     paddingHorizontal: 20,
+    lineHeight: 22,
   },
   errorContainer: {
     backgroundColor: '#ffebee',
@@ -296,5 +382,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
-export default Download;
