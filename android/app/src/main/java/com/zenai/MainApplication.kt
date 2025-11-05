@@ -1,4 +1,4 @@
-package com.zen
+package com.zenai
 
 import android.app.Application
 import com.facebook.react.PackageList

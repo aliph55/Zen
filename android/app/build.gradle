@@ -82,13 +82,13 @@ packagingOptions {
         pickFirst '**/libc++_shared.so'
         pickFirst '**/libjsi.so'
     }
-    namespace "com.zen"
+    namespace "com.zenai"
     defaultConfig {
-        applicationId "com.zen"
+        applicationId "com.zenai"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "2.0"
     }
     signingConfigs {
         debug {
