@@ -12,55 +12,60 @@ import Signin from './screens/Signin';
 import { store } from './redux/store';
 import { Provider } from 'react-redux';
 import { AdsProvider } from './contexts/adsContext';
+import { ModelProvider } from './contexts/ModelContext'; // YENİ IMPORT
 
 const Stack = createNativeStackNavigator();
 
 const App = () => {
   return (
     <Provider store={store}>
-      <AdsProvider>
-        <NavigationContainer>
-          <Stack.Navigator initialRouteName="Download">
-            <Stack.Screen name="Download" options={{ headerShown: false }}>
-              {({ navigation }) => (
-                <Download
-                  onDownloadComplete={modelPath => {
-                    console.log('✅ Model hazır, navigasyon başlıyor...');
-                    // Signin ekranına yönlendir
-                    navigation.replace('Signin');
-                  }}
-                />
-              )}
-            </Stack.Screen>
+      <ModelProvider>
+        {/* MODEL PROVIDER EKLENDI */}
+        <AdsProvider>
+          <NavigationContainer>
+            <Stack.Navigator initialRouteName="Download">
+              <Stack.Screen name="Download" options={{ headerShown: false }}>
+                {({ navigation }) => (
+                  <Download
+                    onDownloadComplete={modelPath => {
+                      console.log('✅ Model hazır, navigasyon başlıyor...');
+                      navigation.replace('Signin');
+                    }}
+                  />
+                )}
+              </Stack.Screen>
 
-            <Stack.Screen
-              name="Signin"
-              component={Signin}
-              options={{ headerShown: false }}
-            />
+              <Stack.Screen
+                name="Signin"
+                component={Signin}
+                options={{ headerShown: false }}
+              />
 
-            <Stack.Screen
-              name="Home"
-              component={Home}
-              options={{ headerShown: false }}
-            />
+              <Stack.Screen
+                name="Home"
+                component={Home}
+                options={{ headerShown: false }}
+              />
 
-            <Stack.Screen name="Profile" component={Profile} />
+              <Stack.Screen name="Profile" component={Profile} />
 
-            <Stack.Screen
-              name="Presentation"
-              component={Presentation}
-              options={{ headerShown: false }}
-            />
+              <Stack.Screen
+                name="Presentation"
+                component={Presentation}
+                options={{ headerShown: false }}
+              />
 
-            <Stack.Screen name="Chat" component={Chat} />
+              <Stack.Screen name="Chat" component={Chat} />
 
-            <Stack.Screen name="History" component={History} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </AdsProvider>
+              <Stack.Screen name="History" component={History} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </AdsProvider>
+      </ModelProvider>
     </Provider>
   );
 };
 
 export default App;
+
+const styles = StyleSheet.create({});

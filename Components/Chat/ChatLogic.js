@@ -1,16 +1,27 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as ort from 'onnxruntime-react-native';
-import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { showRewardedAd } from '../adsService'; // Adjust path as needed
+import { Alert } from 'react-native';
+import { showRewardedAd } from '../adsService';
+import { useModel } from '../../contexts/ModelContext'; // YENİ IMPORT
 
 export const useChatLogic = ({ route, navigation }) => {
   const { groupId, chatId } = route.params || {};
+
+  // GLOBAL MODEL CONTEXT'TEN AL
+  const {
+    modelLoaded,
+    modelLoadError,
+    isLoading: modelIsLoading,
+    vocab,
+    reverseVocab,
+    sessionRef,
+    loadModel,
+    loadVocab,
+  } = useModel();
+
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [modelLoaded, setModelLoaded] = useState(false);
-  const [modelLoadError, setModelLoadError] = useState(null);
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingComplete, setStreamingComplete] = useState(false);
@@ -23,226 +34,26 @@ export const useChatLogic = ({ route, navigation }) => {
   const [lastOpened, setLastOpened] = useState(null);
   const [isGroupNameModalVisible, setGroupNameModalVisible] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
-  const [vocab, setVocab] = useState(null);
-  const [reverseVocab, setReverseVocab] = useState(null);
   const [seconds, setSeconds] = useState(420);
 
-  const sessionRef = useRef(null);
   const scrollViewRef = useRef(null);
   const streamingMessageId = useRef(null);
   const saveTimeoutRef = useRef(null);
 
-  const MODEL_PATHS = {
-    android: {
-      model: `${RNFS.DocumentDirectoryPath}/model.onnx`,
-      vocab: `${RNFS.DocumentDirectoryPath}/vocab.json`,
-      config: `${RNFS.DocumentDirectoryPath}/config.json`,
-    },
-    ios: {
-      model: `${RNFS.DocumentDirectoryPath}/model.onnx`,
-      vocab: `${RNFS.DocumentDirectoryPath}/vocab.json`,
-      config: `${RNFS.DocumentDirectoryPath}/config.json`,
-    },
-  };
+  // MODEL YÜKLEME - SADECE İLK DEFA ÇALIŞTIR
+  useEffect(() => {
+    const initializeModel = async () => {
+      if (!modelLoaded && !modelIsLoading) {
+        console.log('🔄 Model henüz yüklenmedi, yükleniyor...');
+        await loadModel();
+        await loadVocab();
+      } else {
+        console.log('✅ Model zaten yüklü veya yükleniyor, bekleniyor...');
+      }
+    };
 
-  const getModelPath = () => {
-    return Platform.OS === 'android' ? MODEL_PATHS.android : MODEL_PATHS.ios;
-  };
-
-  const copyModelFromAssets = async () => {
-    try {
-      const paths = getModelPath();
-      const modelExists = await RNFS.exists(paths.model);
-
-      if (!modelExists) {
-        console.log(
-          "Model dosyası DocumentDirectory'de yok, assets'ten kopyalanıyor...",
-        );
-        if (Platform.OS === 'android') {
-          try {
-            const assetsModelPath = 'model.onnx';
-            console.log("Android: Assets'ten kopyalanıyor:", assetsModelPath);
-            const assetsList = await RNFS.readDirAssets('');
-            console.log('Assets klasöründeki dosyalar:', assetsList);
-            await RNFS.copyFileAssets(assetsModelPath, paths.model);
-            console.log('✅ Model başarıyla kopyalandı:', paths.model);
-            const copiedExists = await RNFS.exists(paths.model);
-            if (!copiedExists) {
-              throw new Error('Model kopyalandı ama dosya bulunamadı!');
-            }
-            const modelStat = await RNFS.stat(paths.model);
-            console.log('✅ Kopyalanan model boyutu:', modelStat.size, 'bytes');
-            return true;
-          } catch (copyError) {
-            console.error("❌ Assets'ten kopyalama hatası:", copyError);
-            throw new Error(
-              `Model assets'ten kopyalanamadı: ${copyError.message}`,
-            );
-          }
-        } else {
-          const bundleModelPath = `${RNFS.MainBundlePath}/model.onnx`;
-          const bundleExists = await RNFS.exists(bundleModelPath);
-          if (!bundleExists) {
-            throw new Error(
-              `iOS Bundle'da model bulunamadı: ${bundleModelPath}`,
-            );
-          }
-          await RNFS.copyFile(bundleModelPath, paths.model);
-          console.log("✅ Model iOS bundle'dan kopyalandı");
-          return true;
-        }
-      }
-      console.log('✅ Model dosyası zaten mevcut:', paths.model);
-      return true;
-    } catch (error) {
-      console.error('❌ Model kopyalama hatası:', error);
-      setModelLoaded(false);
-      setModelLoadError(`Model kopyalanamadı: ${error.message}`);
-      return false;
-    }
-  };
-
-  const loadModel = async () => {
-    try {
-      setIsLoading(true);
-      setModelLoadError(null);
-      const copySuccess = await copyModelFromAssets();
-      if (!copySuccess) {
-        throw new Error('Model dosyası kopyalanamadı');
-      }
-      const paths = getModelPath();
-      const modelExists = await RNFS.exists(paths.model);
-      if (!modelExists) {
-        throw new Error(`Model dosyası hala bulunamadı: ${paths.model}`);
-      }
-      const modelStat = await RNFS.stat(paths.model);
-      console.log('📊 Model dosya boyutu:', modelStat.size, 'bytes');
-      if (modelStat.size === 0) {
-        throw new Error('Model dosyası boş!');
-      }
-      let session;
-      try {
-        console.log('🔄 Model yükleniyor (path)...');
-        session = await ort.InferenceSession.create(paths.model, {
-          executionProviders: ['cpu'],
-          graphOptimizationLevel: 'all',
-          enableCpuMemArena: true,
-          enableMemPattern: true,
-          executionMode: 'sequential',
-          logSeverityLevel: 0,
-          interOpNumThreads: 1,
-          intraOpNumThreads: 1,
-          memoryLimit: 512 * 1024 * 1024, // 512MB limit
-          enableProfiling: false,
-        });
-        console.log('✅ Model path ile yüklendi');
-      } catch (pathError) {
-        console.warn(
-          '⚠️ Path ile yükleme başarısız, buffer ile deneniyor...',
-          pathError.message,
-        );
-        const CHUNK_SIZE = 10 * 1024 * 1024;
-        const fileSize = modelStat.size;
-        let modelData = '';
-        console.log("📦 Model chunk'lar halinde okunuyor...");
-        for (let offset = 0; offset < fileSize; offset += CHUNK_SIZE) {
-          const length = Math.min(CHUNK_SIZE, fileSize - offset);
-          const chunk = await RNFS.read(paths.model, length, offset, 'base64');
-          modelData += chunk;
-          const progress = (((offset + length) / fileSize) * 100).toFixed(1);
-          console.log(`📊 İlerleme: ${progress}%`);
-          await new Promise(resolve => setTimeout(resolve, 10));
-        }
-        console.log('🔄 Base64 decode ediliyor...');
-        const binaryString = atob(modelData);
-        const modelBuffer = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          modelBuffer[i] = binaryString.charCodeAt(i);
-        }
-        console.log('🔄 Model buffer ile yükleniyor...');
-        session = await ort.InferenceSession.create(modelBuffer, {
-          executionProviders: ['cpu'],
-          graphOptimizationLevel: 'disabled',
-          enableCpuMemArena: false,
-          enableMemPattern: false,
-          executionMode: 'sequential',
-          logSeverityLevel: 0,
-          interOpNumThreads: 1,
-          intraOpNumThreads: 1,
-        });
-        console.log('✅ Model buffer ile yüklendi');
-      }
-      sessionRef.current = session;
-      setModelLoaded(true);
-      console.log('✅✅ Model başarıyla yüklendi ve hazır!');
-    } catch (error) {
-      console.error('❌ Model yükleme hatası:', error);
-      setModelLoadError(error.message);
-      Alert.alert('Model Yükleme Hatası', error.message, [
-        { text: 'Tekrar Dene', onPress: loadModel },
-        { text: 'İptal', style: 'cancel' },
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const loadVocab = async () => {
-    try {
-      const paths = getModelPath();
-      const vocabExists = await RNFS.exists(paths.vocab);
-      if (!vocabExists) {
-        if (Platform.OS === 'android') {
-          try {
-            const vocabContent = await RNFS.readFileAssets(
-              'vocab.json',
-              'utf8',
-            );
-            await RNFS.writeFile(paths.vocab, vocabContent, 'utf8');
-          } catch (readError) {
-            const defaultVocab = {
-              '<|endoftext|>': 0,
-              the: 1,
-              a: 2,
-              is: 3,
-              to: 4,
-              of: 5,
-              and: 6,
-              in: 7,
-              that: 8,
-              it: 9,
-              '<unk>': 10,
-            };
-            await RNFS.writeFile(
-              paths.vocab,
-              JSON.stringify(defaultVocab),
-              'utf8',
-            );
-          }
-        } else {
-          const bundlePath = `${RNFS.MainBundlePath}/vocab.json`;
-          await RNFS.copyFile(bundlePath, paths.vocab);
-        }
-      }
-      const vocabContent = await RNFS.readFile(paths.vocab, 'utf8');
-      const vocabData = JSON.parse(vocabContent);
-      const reverse = {};
-      for (const [token, id] of Object.entries(vocabData)) {
-        reverse[id] = token;
-      }
-      setVocab(vocabData);
-      setReverseVocab(reverse);
-      console.log('Vocab başarıyla yüklendi');
-    } catch (error) {
-      console.error('Vocab yükleme hatası:', error);
-      const fallbackVocab = {};
-      for (let i = 0; i < 50000; i++) {
-        fallbackVocab[i] = `token_${i}`;
-      }
-      setReverseVocab(fallbackVocab);
-      Alert.alert('Hata', `Vocab yüklenemedi: ${error.message}`);
-    }
-  };
+    initializeModel();
+  }, []); // Boş dependency array - sadece mount'ta çalışır
 
   const testAsyncStorage = async () => {
     try {
@@ -307,10 +118,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
   const saveGroups = useCallback(async groupsToSave => {
     try {
-      console.log(
-        'saveGroups çağrıldı, kaydedilecek gruplar:',
-        JSON.stringify(groupsToSave, null, 2),
-      );
+      console.log('saveGroups çağrıldı');
       const serializedGroups = groupsToSave.map(g => ({
         ...g,
         chats: g.chats.map(c => ({
@@ -333,18 +141,8 @@ export const useChatLogic = ({ route, navigation }) => {
         })),
       }));
       const jsonString = JSON.stringify(serializedGroups);
-      console.log('Serileştirilmiş veri uzunluğu:', jsonString.length);
       await AsyncStorage.setItem('groups', jsonString);
       console.log("✅ Gruplar başarıyla AsyncStorage'a kaydedildi");
-      const verification = await AsyncStorage.getItem('groups');
-      if (verification) {
-        console.log(
-          '✅ Doğrulama: Veriler başarıyla okundu, uzunluk:',
-          verification.length,
-        );
-      } else {
-        console.error('❌ Doğrulama hatası: Veriler okunamadı!');
-      }
     } catch (error) {
       console.error('❌ Gruplar kaydetme hatası:', error);
       Alert.alert('Hata', `Gruplar kaydedilemedi: ${error.message}`);
@@ -370,10 +168,7 @@ export const useChatLogic = ({ route, navigation }) => {
         chatId,
       });
       const savedGroups = await AsyncStorage.getItem('groups');
-      console.log(
-        "AsyncStorage'dan alınan ham veri:",
-        savedGroups ? savedGroups.substring(0, 200) + '...' : 'null',
-      );
+
       if (savedGroups) {
         const parsed = JSON.parse(savedGroups);
         let loadedGroups = parsed.map(g => ({
@@ -392,11 +187,9 @@ export const useChatLogic = ({ route, navigation }) => {
               }))
             : [],
         }));
-        console.log(
-          '✅ loadGroups: Parsed groups:',
-          JSON.stringify(loadedGroups, null, 2),
-        );
+
         setGroups(loadedGroups);
+
         if (groupId && chatId) {
           const currentGroup = loadedGroups.find(g => g.id === groupId);
           if (currentGroup) {
@@ -409,6 +202,7 @@ export const useChatLogic = ({ route, navigation }) => {
               setTitle(currentChat.title);
               setStartDate(currentChat.startDate);
               setLastOpened(new Date());
+
               const updatedGroups = loadedGroups.map(g =>
                 g.id === groupId
                   ? {
@@ -419,28 +213,17 @@ export const useChatLogic = ({ route, navigation }) => {
                     }
                   : g,
               );
-              console.log(
-                '✅ loadGroups: Updated groups with lastOpened:',
-                JSON.stringify(updatedGroups, null, 2),
-              );
               await saveGroups(updatedGroups);
             } else {
-              console.warn('⚠️ loadGroups: Chat not found for chatId:', chatId);
               createNewChatIfNeeded();
             }
           } else {
-            console.warn(
-              '⚠️ loadGroups: Group not found for groupId:',
-              groupId,
-            );
             createNewChatIfNeeded();
           }
         } else {
-          console.log('📌 loadGroups: No groupId or chatId, creating new chat');
           createNewChatIfNeeded();
         }
       } else {
-        console.log('AsyncStorage boş, yeni default grup oluşturuluyor...');
         const defaultGroup = {
           id: Date.now().toString(),
           name: 'Genel',
@@ -474,6 +257,7 @@ export const useChatLogic = ({ route, navigation }) => {
     currentMessages => {
       if (!currentGroupId || !currentChatId || currentMessages.length === 0)
         return null;
+
       let currentTitle = title;
       if (
         !currentTitle &&
@@ -484,6 +268,7 @@ export const useChatLogic = ({ route, navigation }) => {
           currentMessages[0].text.slice(0, 50) +
           (currentMessages[0].text.length > 50 ? '...' : '');
       }
+
       return {
         id: currentChatId,
         title: currentTitle || 'Sohbet',
@@ -498,6 +283,7 @@ export const useChatLogic = ({ route, navigation }) => {
   const startNewGroup = () => {
     const updatedChat = updateCurrentChat(messages);
     let newGroups = [...groups];
+
     if (updatedChat) {
       newGroups = newGroups.map(g =>
         g.id === currentGroupId
@@ -510,6 +296,7 @@ export const useChatLogic = ({ route, navigation }) => {
           : g,
       );
     }
+
     const newGroupId = Date.now().toString();
     const newChatId = (Date.now() + 1).toString();
     const newGroup = {
@@ -525,6 +312,7 @@ export const useChatLogic = ({ route, navigation }) => {
         },
       ],
     };
+
     newGroups = [...newGroups, newGroup];
     setGroups(newGroups);
     setCurrentGroupId(newGroupId);
@@ -540,8 +328,10 @@ export const useChatLogic = ({ route, navigation }) => {
 
   const startNewChat = () => {
     if (!currentGroupId) return;
+
     const updatedChat = updateCurrentChat(messages);
     let newGroups = [...groups];
+
     if (updatedChat) {
       newGroups = newGroups.map(g =>
         g.id === currentGroupId
@@ -554,6 +344,7 @@ export const useChatLogic = ({ route, navigation }) => {
           : g,
       );
     }
+
     const newChatId = Date.now().toString();
     const newChat = {
       id: newChatId,
@@ -562,9 +353,11 @@ export const useChatLogic = ({ route, navigation }) => {
       lastOpened: new Date(),
       messages: [],
     };
+
     newGroups = newGroups.map(g =>
       g.id === currentGroupId ? { ...g, chats: [...g.chats, newChat] } : g,
     );
+
     setGroups(newGroups);
     setCurrentChatId(newChatId);
     setMessages(newChat.messages);
@@ -582,12 +375,6 @@ export const useChatLogic = ({ route, navigation }) => {
       let newGroupId = currentGroupId;
       let newChatId = currentChatId;
 
-      console.log('📌 createNewChatIfNeeded: Current state', {
-        currentGroupId,
-        currentChatId,
-        groupsLength: newGroups.length,
-      });
-
       if (!newGroupId) {
         newGroupId = Date.now().toString();
         const newGroup = {
@@ -599,7 +386,6 @@ export const useChatLogic = ({ route, navigation }) => {
         setCurrentGroupId(newGroupId);
         setCurrentGroupName(newGroup.name);
         needsSave = true;
-        console.log('📌 createNewChatIfNeeded: Created new group:', newGroup);
       }
 
       if (!newChatId) {
@@ -619,24 +405,11 @@ export const useChatLogic = ({ route, navigation }) => {
         setStartDate(newChat.startDate);
         setLastOpened(newChat.lastOpened);
         needsSave = true;
-        console.log('📌 createNewChatIfNeeded: Created new chat:', newChat);
       }
 
       if (needsSave) {
-        console.log(
-          '📌 createNewChatIfNeeded: Saving groups:',
-          JSON.stringify(newGroups, null, 2),
-        );
         debouncedSave(newGroups);
       }
-
-      const group = newGroups.find(g => g.id === newGroupId);
-      const chat = group?.chats.find(c => c.id === newChatId);
-      console.log('📌 createNewChatIfNeeded: Verification', {
-        groupExists: !!group,
-        chatExists: !!chat,
-        chatsCount: group?.chats.length || 0,
-      });
 
       return newGroups;
     });
@@ -664,12 +437,15 @@ export const useChatLogic = ({ route, navigation }) => {
     }
     let processedText = text.trim();
     if (!processedText) return [50256];
+
     const tokens = [];
     const words = processedText.split(' ');
+
     for (let i = 0; i < words.length; i++) {
       const word = words[i];
       if (!word) continue;
       const prefix = i === 0 ? '' : 'Ġ';
+
       if (vocab[prefix + word] !== undefined) {
         tokens.push(vocab[prefix + word]);
       } else if (vocab[prefix + word.toLowerCase()] !== undefined) {
@@ -678,6 +454,7 @@ export const useChatLogic = ({ route, navigation }) => {
         tokens.push(vocab['<unk>'] || 10);
       }
     }
+
     tokens.unshift(vocab['<|endoftext|>'] || 50256);
     return tokens;
   };
@@ -705,15 +482,18 @@ export const useChatLogic = ({ route, navigation }) => {
       setCurrentStreamingMessage('');
       setIsStreaming(true);
       setStreamingComplete(false);
+
       for (let i = 0; i < words.length; i++) {
         await new Promise(resolve => setTimeout(resolve, 200));
         setCurrentStreamingMessage(words.slice(0, i + 1).join(' '));
       }
+
       setStreamingComplete(true);
       await new Promise(resolve => setTimeout(resolve, 500));
       setIsStreaming(false);
       return mockResponse;
     }
+
     try {
       const tokens = await tokenize(prompt || 'Merhaba');
       let currentInputIds = tokens.slice(0, 100);
@@ -727,25 +507,30 @@ export const useChatLogic = ({ route, navigation }) => {
       let pastKeyValues = null;
       let pastLength = 0;
       let recentTokens = [...currentInputIds];
+
       setCurrentStreamingMessage('');
       setIsStreaming(true);
       setStreamingComplete(false);
+
       for (let step = 0; step < maxNewTokens; step++) {
         const inputForStep =
           step === 0
             ? currentInputIds
             : [currentInputIds[currentInputIds.length - 1]];
+
         const inputTensor = new ort.Tensor(
           'int64',
           new BigInt64Array(inputForStep.map(id => BigInt(id))),
           [1, inputForStep.length],
         );
+
         const totalLength = pastLength + inputForStep.length;
         const attentionMask = new ort.Tensor(
           'int64',
           new BigInt64Array(new Array(totalLength).fill(1).map(v => BigInt(v))),
           [1, totalLength],
         );
+
         const positionIds = new ort.Tensor(
           'int64',
           new BigInt64Array(
@@ -755,11 +540,13 @@ export const useChatLogic = ({ route, navigation }) => {
           ),
           [1, inputForStep.length],
         );
+
         const feeds = {
           input_ids: inputTensor,
           attention_mask: attentionMask,
           position_ids: positionIds,
         };
+
         for (let i = 0; i < 6; i++) {
           feeds[`past_key_values.${i}.key`] = pastKeyValues
             ? pastKeyValues[`key_${i}`]
@@ -776,21 +563,26 @@ export const useChatLogic = ({ route, navigation }) => {
                 [1, 12, 0, 64],
               );
         }
+
         const results = await sessionRef.current.run(feeds);
         const logits = results.logits;
+
         if (!logits || !logits.data) {
           throw new Error('Model did not return valid logits');
         }
+
         const vocabSize = logits.dims[2];
         const lastTokenLogits = new Float32Array(vocabSize);
         for (let i = 0; i < vocabSize; i++) {
           lastTokenLogits[i] = logits.data[logits.data.length - vocabSize + i];
         }
+
         const recentTokenCount = {};
         const recentWindow = recentTokens.slice(-20);
         for (const token of recentWindow) {
           recentTokenCount[token] = (recentTokenCount[token] || 0) + 1;
         }
+
         for (const [tokenId, count] of Object.entries(recentTokenCount)) {
           if (count > 1) {
             const penalty = Math.pow(repetitionPenalty, count);
@@ -802,6 +594,7 @@ export const useChatLogic = ({ route, navigation }) => {
             }
           }
         }
+
         const clippedLogits = lastTokenLogits.map(l =>
           Math.max(Math.min(l, 100), -100),
         );
@@ -812,27 +605,22 @@ export const useChatLogic = ({ route, navigation }) => {
         const normalizedLogits = scaledLogits.map(l => l - maxLogit);
         const expLogits = normalizedLogits.map(l => Math.exp(Math.min(l, 20)));
         const sumExp = expLogits.reduce((a, b) => a + b, 0);
+
         let nextTokenId;
         if (!sumExp || isNaN(sumExp) || sumExp === 0) {
-          console.warn('Invalid probability sum, using greedy selection', {
-            sumExp,
-            expLogits: expLogits.slice(0, 10),
-            normalizedLogits: normalizedLogits.slice(0, 10),
-          });
           nextTokenId = scaledLogits.indexOf(Math.max(...scaledLogits));
         } else {
           const probs = expLogits.map(e => e / sumExp);
           const probsWithIndex = probs
             .map((prob, index) => ({ prob, index }))
             .filter(item => !isNaN(item.prob) && item.prob > 1e-8);
+
           if (probsWithIndex.length === 0) {
-            console.warn('No valid probabilities, using greedy selection', {
-              probs: probs.slice(0, 10),
-            });
             nextTokenId = scaledLogits.indexOf(Math.max(...scaledLogits));
           } else {
             probsWithIndex.sort((a, b) => b.prob - a.prob);
             let filteredProbs = probsWithIndex.slice(0, topK);
+
             let cumSum = 0;
             let cutoffIndex = filteredProbs.length;
             for (let i = 0; i < filteredProbs.length; i++) {
@@ -842,6 +630,7 @@ export const useChatLogic = ({ route, navigation }) => {
                 break;
               }
             }
+
             filteredProbs = filteredProbs.slice(0, cutoffIndex);
             const filteredSum = filteredProbs.reduce(
               (sum, item) => sum + item.prob,
@@ -851,11 +640,8 @@ export const useChatLogic = ({ route, navigation }) => {
               ...item,
               prob: filteredSum > 0 ? item.prob / filteredSum : item.prob,
             }));
+
             if (filteredProbs.length === 0) {
-              console.warn(
-                'Filtered probabilities empty, using greedy selection',
-                { filteredProbsCount: probsWithIndex.length },
-              );
               nextTokenId = scaledLogits.indexOf(Math.max(...scaledLogits));
             } else {
               const random = Math.random();
@@ -871,15 +657,18 @@ export const useChatLogic = ({ route, navigation }) => {
             }
           }
         }
+
         generatedTokens.push(nextTokenId);
         recentTokens.push(nextTokenId);
         if (recentTokens.length > 50) recentTokens = recentTokens.slice(-40);
+
         const fullText = generatedTokens
           .map(id => decodeAndAppendToken(id))
           .join('')
           .trim()
           .replace(/\s+/g, ' ');
         setCurrentStreamingMessage(fullText);
+
         if (step === 0) {
           pastLength = currentInputIds.length;
           currentInputIds.push(nextTokenId);
@@ -887,11 +676,13 @@ export const useChatLogic = ({ route, navigation }) => {
           pastLength += 1;
           currentInputIds = [nextTokenId];
         }
+
         pastKeyValues = {};
         for (let i = 0; i < 6; i++) {
           pastKeyValues[`key_${i}`] = results[`present.${i}.key`];
           pastKeyValues[`value_${i}`] = results[`present.${i}.value`];
         }
+
         if (
           generatedTokens.length >= 5 &&
           generatedTokens
@@ -902,21 +693,26 @@ export const useChatLogic = ({ route, navigation }) => {
         ) {
           break;
         }
+
         if (
           nextTokenId === eosTokenId ||
           generatedTokens.length >= maxNewTokens
         ) {
           break;
         }
+
         await new Promise(resolve => setTimeout(resolve, 100));
       }
+
       setStreamingComplete(true);
       let finalResponse = generatedTokens
         .map(id => decodeAndAppendToken(id))
         .join('')
         .trim()
         .replace(/\s+/g, ' ');
+
       if (!finalResponse) finalResponse = 'Model kısa yanıt üretti.';
+
       setCurrentStreamingMessage(finalResponse);
       await new Promise(resolve => setTimeout(resolve, 500));
       setIsStreaming(false);
@@ -930,34 +726,30 @@ export const useChatLogic = ({ route, navigation }) => {
   };
 
   const sendMessage = async () => {
-    if (!inputText.trim() || isLoading || isStreaming) return;
+    if (!inputText.trim() || isStreaming) return;
+
     if (!modelLoaded) {
       Alert.alert('Uyarı', 'Model henüz yüklenmedi. Lütfen bekleyin.');
       return;
     }
-    console.log('📩 sendMessage: Starting with', {
-      inputText,
-      currentGroupId,
-      currentChatId,
-      messagesLength: messages.length,
-    });
+
     createNewChatIfNeeded();
+
     if (!currentGroupId || !currentChatId) {
-      console.error('❌ sendMessage: Missing group or chat ID', {
-        currentGroupId,
-        currentChatId,
-      });
       Alert.alert('Hata', 'Grup veya sohbet ID eksik.');
       return;
     }
+
     const userMessage = {
       id: Date.now().toString(),
       text: inputText,
       sender: 'user',
       timestamp: new Date(),
     };
+
     setMessages(prevMessages => {
       const newMessages = [...prevMessages, userMessage];
+
       let newTitle = title;
       if (prevMessages.length === 0) {
         const trimmedInput = inputText.replace(/\s+/g, ' ').trim();
@@ -968,6 +760,7 @@ export const useChatLogic = ({ route, navigation }) => {
             : 'Sohbet';
         setTitle(newTitle);
       }
+
       setGroups(prevGroups => {
         let updatedGroups = prevGroups.map(g =>
           g.id === currentGroupId
@@ -997,15 +790,14 @@ export const useChatLogic = ({ route, navigation }) => {
               }
             : g,
         );
-        console.log(
-          '📩 sendMessage: Updated groups before save:',
-          JSON.stringify(updatedGroups, null, 2),
-        );
+
         debouncedSave(updatedGroups);
         return updatedGroups;
       });
+
       setInputText('');
       streamingMessageId.current = (Date.now() + 1).toString();
+
       generateStreamingResponse(inputText)
         .then(response => {
           const finalMessageText = currentStreamingMessage.trim() || response;
@@ -1015,8 +807,10 @@ export const useChatLogic = ({ route, navigation }) => {
             sender: 'ai',
             timestamp: new Date(),
           };
+
           setMessages(prevMessages => {
             const finalMessages = [...prevMessages, aiMessage];
+
             setGroups(prevGroups => {
               const finalGroups = prevGroups.map(g =>
                 g.id === currentGroupId
@@ -1034,14 +828,12 @@ export const useChatLogic = ({ route, navigation }) => {
                     }
                   : g,
               );
-              console.log(
-                '📩 sendMessage: Final groups after AI response:',
-                JSON.stringify(finalGroups, null, 2),
-              );
+
               saveGroups(finalGroups);
               debugAsyncStorage();
               return finalGroups;
             });
+
             setCurrentStreamingMessage('');
             return finalMessages;
           });
@@ -1052,6 +844,7 @@ export const useChatLogic = ({ route, navigation }) => {
           setIsStreaming(false);
           setCurrentStreamingMessage('');
         });
+
       return newMessages;
     });
   };
@@ -1076,13 +869,11 @@ export const useChatLogic = ({ route, navigation }) => {
   }, []);
 
   useEffect(() => {
-    loadModel().then(() => {});
-    loadVocab(); // Vocab yükleme de atlanabilir
     testAsyncStorage();
     checkStorageSize();
     loadGroups();
+
     return () => {
-      if (sessionRef.current) sessionRef.current.release?.();
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, []);
@@ -1122,7 +913,7 @@ export const useChatLogic = ({ route, navigation }) => {
     setMessages,
     inputText,
     setInputText,
-    isLoading,
+    isLoading: modelIsLoading,
     modelLoaded,
     modelLoadError,
     currentStreamingMessage,

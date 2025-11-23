@@ -8,80 +8,81 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import RNFS from 'react-native-fs';
+import { useModel } from '../contexts/ModelContext';
 
 // AWS S3 URL
 const MODEL_URL =
   'https://s3.eu-north-1.amazonaws.com/model.onnxugvjhb/model.onnx';
 const MODEL_LOCAL_PATH = `${RNFS.DocumentDirectoryPath}/model.onnx`;
 const EXPECTED_MODEL_SIZE = 482272438; // 482.27 MB (bytes)
-const MIN_VALID_SIZE = 480000000; // Minimum 480 MB olmalı
+const MIN_VALID_SIZE = 480000000; // Minimum 480 MB
 
 const Download = ({ onDownloadComplete }) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [error, setError] = useState(null);
-  const [statusMessage, setStatusMessage] = useState(
-    'Model kontrol ediliyor...',
-  );
+  const [statusMessage, setStatusMessage] = useState('Checking model...');
+
+  const { loadModel, loadVocab } = useModel();
 
   const downloadModel = async () => {
     try {
       setIsDownloading(true);
       setError(null);
-      setStatusMessage('Model kontrol ediliyor...');
+      setStatusMessage('Checking model...');
 
-      // Model zaten var mı kontrol et
+      // Check if model already exists
       const exists = await RNFS.exists(MODEL_LOCAL_PATH);
       if (exists) {
-        console.log('✅ Model dosyası bulundu, doğrulanıyor...');
+        console.log('✅ Model file found, validating...');
         const stat = await RNFS.stat(MODEL_LOCAL_PATH);
-        console.log('📊 Mevcut model boyutu:', stat.size, 'bytes');
-        console.log('📊 Beklenen boyut:', EXPECTED_MODEL_SIZE, 'bytes');
+        console.log('📊 Current model size:', stat.size, 'bytes');
+        console.log('📊 Expected size:', EXPECTED_MODEL_SIZE, 'bytes');
 
-        // DÜZELTME: Boyut kontrolü - minimum 480MB olmalı
         if (stat.size >= MIN_VALID_SIZE) {
-          console.log('✅ Model geçerli, indirme atlanıyor.');
-          setStatusMessage('Model hazır!');
+          console.log('✅ Model is valid, skipping download.');
+          setStatusMessage('Model is ready!');
+
+          await loadModel();
+          await loadVocab();
 
           if (typeof onDownloadComplete === 'function') {
             onDownloadComplete(MODEL_LOCAL_PATH);
           } else {
-            console.error('❌ onDownloadComplete fonksiyonu tanımlı değil.');
-            setError('Uygulama yapılandırma hatası.');
+            console.error('❌ onDownloadComplete function is not defined.');
+            setError('Application configuration error.');
           }
           setIsDownloading(false);
           return;
         } else {
-          console.log('⚠️ Model dosyası eksik veya bozuk!');
+          console.log('⚠️ Model file is incomplete or corrupted!');
           console.log(
-            `📊 Mevcut: ${stat.size} bytes, Beklenen: ${EXPECTED_MODEL_SIZE} bytes`,
+            `📊 Current: ${stat.size} bytes, Expected: ${EXPECTED_MODEL_SIZE} bytes`,
           );
-          console.log('🗑️ Eski dosya siliniyor...');
+          console.log('🗑️ Deleting old file...');
           await RNFS.unlink(MODEL_LOCAL_PATH);
-          console.log('✅ Eski dosya silindi, yeniden indirme başlıyor...');
+          console.log('✅ Old file deleted, starting download...');
         }
       }
 
-      console.log('📥 Model indiriliyor...');
+      console.log('📥 Downloading model...');
       console.log('🔗 URL:', MODEL_URL);
-      setStatusMessage(
-        'Model indiriliyor... (Bu işlem birkaç dakika sürebilir)',
-      );
+      setStatusMessage('Downloading model... (This may take a few minutes)');
 
       const downloadOptions = {
         fromUrl: MODEL_URL,
         toFile: MODEL_LOCAL_PATH,
         background: false,
-        progressDivider: 1, // Her %1'de güncelle
-        connectionTimeout: 30000, // 30 saniye timeout
+        progressDivider: 1,
+        connectionTimeout: 30000,
         readTimeout: 30000,
         begin: res => {
-          console.log('🚀 İndirme başladı');
-          console.log('📊 Toplam boyut:', res.contentLength, 'bytes');
+          console.log('🚀 Download started');
+          console.log('📊 Total size:', res.contentLength, 'bytes');
           console.log('📊 Status code:', res.statusCode);
 
           if (res.contentLength && res.contentLength < MIN_VALID_SIZE) {
-            console.warn('⚠️ Sunucu yanıt boyutu beklenenden küçük!');
+            console.warn('⚠️ Server response size is smaller than expected!');
           }
         },
         progress: res => {
@@ -92,10 +93,9 @@ const Download = ({ onDownloadComplete }) => {
 
           setDownloadProgress(progressPercent);
 
-          // Her %5'te bir log
           if (Math.floor(progressPercent) % 5 === 0) {
             console.log(
-              `📥 İndirildi: ${progressPercent.toFixed(1)}% (${(
+              `📥 Downloaded: ${progressPercent.toFixed(1)}% (${(
                 res.bytesWritten /
                 1024 /
                 1024
@@ -106,7 +106,7 @@ const Download = ({ onDownloadComplete }) => {
           }
 
           setStatusMessage(
-            `Model indiriliyor: ${progressPercent.toFixed(0)}% (${(
+            `Downloading model: ${progressPercent.toFixed(0)}% (${(
               res.bytesWritten /
               1024 /
               1024
@@ -117,25 +117,23 @@ const Download = ({ onDownloadComplete }) => {
 
       const result = await RNFS.downloadFile(downloadOptions).promise;
 
-      console.log('✅ İndirme tamamlandı, status code:', result.statusCode);
-      console.log('📊 Yazılan byte:', result.bytesWritten);
+      console.log('✅ Download completed, status code:', result.statusCode);
+      console.log('📊 Bytes written:', result.bytesWritten);
 
       if (result.statusCode === 200) {
-        // Dosya boyutunu kontrol et
         const stat = await RNFS.stat(MODEL_LOCAL_PATH);
-        console.log('📊 İndirilen dosya boyutu:', stat.size, 'bytes');
-        console.log('📊 Beklenen boyut:', EXPECTED_MODEL_SIZE, 'bytes');
+        console.log('📊 Downloaded file size:', stat.size, 'bytes');
+        console.log('📊 Expected size:', EXPECTED_MODEL_SIZE, 'bytes');
 
-        // DÜZELTME: Minimum boyut kontrolü
         if (stat.size < MIN_VALID_SIZE) {
-          console.error('❌ İndirilen dosya çok küçük!');
+          console.error('❌ Downloaded file is too small!');
           await RNFS.unlink(MODEL_LOCAL_PATH);
           throw new Error(
-            `İndirilen dosya eksik! İndirilen: ${(
+            `Downloaded file is incomplete! Downloaded: ${(
               stat.size /
               1024 /
               1024
-            ).toFixed(1)} MB, Beklenen: ${(
+            ).toFixed(1)} MB, Expected: ${(
               EXPECTED_MODEL_SIZE /
               1024 /
               1024
@@ -145,10 +143,9 @@ const Download = ({ onDownloadComplete }) => {
 
         if (stat.size === 0) {
           await RNFS.unlink(MODEL_LOCAL_PATH);
-          throw new Error('İndirilen dosya boş!');
+          throw new Error('Downloaded file is empty!');
         }
 
-        // DÜZELTME: ONNX dosyası kontrolü (binary file)
         try {
           const firstBytes = await RNFS.read(
             MODEL_LOCAL_PATH,
@@ -159,54 +156,53 @@ const Download = ({ onDownloadComplete }) => {
           const decoded = Buffer.from(firstBytes, 'base64').toString('utf8');
 
           console.log(
-            '📄 Dosya başlangıcı (ilk 50 karakter):',
+            '📄 File beginning (first 50 characters):',
             decoded.substring(0, 50),
           );
 
-          // HTML sayfası mı kontrol et
           if (
             decoded.includes('<!DOCTYPE html>') ||
             decoded.includes('<html')
           ) {
-            console.error(
-              '❌ HTML sayfası indirildi! (Muhtemelen hata sayfası)',
-            );
+            console.error('❌ HTML page downloaded! (Probably an error page)');
             await RNFS.unlink(MODEL_LOCAL_PATH);
             throw new Error(
-              "Sunucu hata sayfası döndürdü. Lütfen URL'yi kontrol edin.",
+              'Server returned an error page. Please check the URL.',
             );
           }
         } catch (readError) {
-          // Binary file okuma hatası normal (ONNX binary formatı)
-          console.log('ℹ️ Dosya binary format (beklenen durum)');
+          console.log('ℹ️ File is in binary format (expected)');
         }
 
-        console.log('✅ Model başarıyla indirildi ve doğrulandı!');
-        setStatusMessage('Model başarıyla indirildi!');
+        console.log('✅ Model successfully downloaded and validated!');
+        setStatusMessage('Model downloaded successfully!');
+
+        await loadModel();
+        await loadVocab();
 
         if (typeof onDownloadComplete === 'function') {
           onDownloadComplete(MODEL_LOCAL_PATH);
         } else {
-          console.error('❌ onDownloadComplete fonksiyonu tanımlı değil.');
-          setError('Uygulama yapılandırma hatası.');
+          console.error('❌ onDownloadComplete function is not defined.');
+          setError('Application configuration error.');
         }
       } else {
-        throw new Error(`İndirme hatası, durum kodu: ${result.statusCode}`);
+        throw new Error(`Download error, status code: ${result.statusCode}`);
       }
     } catch (err) {
-      console.error('❌ Model indirme hatası:', err);
-      console.error('Hata detayı:', err.stack);
+      console.error('❌ Model download error:', err);
+      console.error('Error detail:', err.stack);
 
-      const errorMessage = `Model indirilemedi: ${err.message}
+      const errorMessage = `Model could not be downloaded: ${err.message}
 
-Çözüm önerileri:
-1. İnternet bağlantınızı kontrol edin (Wi-Fi önerilir)
-2. Model dosyasını manuel olarak android/app/src/main/assets/ klasörüne koyun
-3. Veya "Assets'ten Yükle" butonuna tıklayın`;
+Solutions:
+1. Check your internet connection (Wi-Fi recommended)
+2. Manually place the model file in android/app/src/main/assets/ folder
+3. Or click the "Load from Assets" button`;
 
       setError(errorMessage);
-      setStatusMessage('Hata oluştu');
-      Alert.alert('Model İndirme Hatası', errorMessage);
+      setStatusMessage('Error occurred');
+      Alert.alert('Model Download Error', errorMessage);
     } finally {
       setIsDownloading(false);
     }
@@ -222,65 +218,82 @@ const Download = ({ onDownloadComplete }) => {
     downloadModel();
   };
 
-  const handleSkip = () => {
-    console.log("ℹ️ İndirme atlandı, assets'ten yükleme deneniyor...");
+  const handleSkip = async () => {
+    console.log('ℹ️ Download skipped, trying to load from assets...');
+
+    await loadModel();
+    await loadVocab();
+
     if (typeof onDownloadComplete === 'function') {
-      // Model yok ama devam et (assets'ten yüklenecek)
       onDownloadComplete(null);
     }
   };
 
-  const formatBytes = bytes => {
-    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
-  };
-
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>AI Model Hazırlanıyor</Text>
-
-      {isDownloading ? (
-        <View style={styles.progressContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.progressText}>{statusMessage}</Text>
-          {downloadProgress > 0 && (
-            <>
-              <View style={styles.progressBar}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { width: `${downloadProgress}%` },
-                  ]}
-                />
-              </View>
-              <Text style={styles.progressPercentage}>
-                {downloadProgress.toFixed(1)}%
-              </Text>
-            </>
-          )}
-          <Text style={styles.hint}>
-            İlk kullanımda model indirilmesi gerekiyor.{'\n'}
-            Dosya boyutu: ~460 MB{'\n'}
-            Bu işlem bir kez yapılır ve birkaç dakika sürebilir.
-          </Text>
-        </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-              <Text style={styles.retryButtonText}>Tekrar Dene</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-              <Text style={styles.skipButtonText}>Assets'ten Yükle</Text>
-            </TouchableOpacity>
+      <View style={styles.card}>
+        <View style={styles.iconContainer}>
+          <View style={styles.iconCircle}>
+            <Text style={styles.iconText}>🤖</Text>
           </View>
         </View>
-      ) : (
-        <View style={styles.progressContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.progressText}>{statusMessage}</Text>
-        </View>
-      )}
+
+        <Text style={styles.title}>AI Model Preparation</Text>
+
+        {isDownloading ? (
+          <View style={styles.progressContainer}>
+            <ActivityIndicator size="large" color="#6366f1" />
+            <Text style={styles.progressText}>{statusMessage}</Text>
+            {downloadProgress > 0 && (
+              <>
+                <View style={styles.progressBarContainer}>
+                  <View style={styles.progressBar}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { width: `${downloadProgress}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.progressPercentage}>
+                    {downloadProgress.toFixed(1)}%
+                  </Text>
+                </View>
+              </>
+            )}
+            <View style={styles.hintContainer}>
+              <Text style={styles.hint}>
+                Model download is required on first use.{'\n'}
+                File size: ~460 MB{'\n'}
+                This is a one-time process and may take a few minutes.
+              </Text>
+            </View>
+          </View>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <View style={styles.errorIcon}>
+              <Text style={styles.errorIconText}>⚠️</Text>
+            </View>
+            <Text style={styles.errorText}>{error}</Text>
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={handleRetry}
+              >
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
+                <Text style={styles.skipButtonText}>Load from Assets</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.progressContainer}>
+            <ActivityIndicator size="large" color="#6366f1" />
+            <Text style={styles.progressText}>{statusMessage}</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 };
@@ -292,93 +305,175 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8f9fd',
     padding: 20,
   },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 24,
+    padding: 32,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+    alignItems: 'center',
+  },
+  iconContainer: {
+    marginBottom: 24,
+  },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#eef2ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  iconText: {
+    fontSize: 40,
+  },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 30,
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 32,
+    letterSpacing: 0.3,
   },
   progressContainer: {
     alignItems: 'center',
     width: '100%',
   },
   progressText: {
-    marginTop: 15,
+    marginTop: 20,
     fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
+    color: '#475569',
+    fontWeight: '600',
     textAlign: 'center',
   },
+  progressBarContainer: {
+    width: '100%',
+    marginTop: 24,
+    alignItems: 'center',
+  },
   progressBar: {
-    width: '80%',
-    height: 8,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 4,
-    marginTop: 15,
+    width: '100%',
+    height: 12,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 12,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 4,
+    backgroundColor: '#6366f1',
+    borderRadius: 12,
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
   },
   progressPercentage: {
-    marginTop: 8,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#007AFF',
+    marginTop: 12,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#6366f1',
+    letterSpacing: 0.5,
+  },
+  hintContainer: {
+    marginTop: 24,
+    padding: 20,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#6366f1',
   },
   hint: {
-    marginTop: 20,
     fontSize: 14,
-    color: '#666',
+    color: '#64748b',
     textAlign: 'center',
-    paddingHorizontal: 20,
     lineHeight: 22,
+    fontWeight: '500',
   },
   errorContainer: {
-    backgroundColor: '#ffebee',
-    padding: 20,
-    borderRadius: 8,
+    backgroundColor: '#fef2f2',
+    padding: 24,
+    borderRadius: 20,
     alignItems: 'center',
-    width: '90%',
+    width: '100%',
+    borderLeftWidth: 4,
+    borderLeftColor: '#ef4444',
+  },
+  errorIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#fee2e2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  errorIconText: {
+    fontSize: 32,
   },
   errorText: {
-    color: '#c62828',
+    color: '#dc2626',
     fontSize: 14,
-    marginBottom: 20,
+    marginBottom: 24,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
+    fontWeight: '500',
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
+    width: '100%',
+    justifyContent: 'center',
   },
   retryButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginHorizontal: 5,
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 16,
+    flex: 1,
+    maxWidth: 150,
+    alignItems: 'center',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   retryButtonText: {
     color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   skipButton: {
-    backgroundColor: '#6c757d',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginHorizontal: 5,
+    backgroundColor: '#64748b',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 16,
+    flex: 1,
+    maxWidth: 150,
+    alignItems: 'center',
+    shadowColor: '#64748b',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   skipButtonText: {
     color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

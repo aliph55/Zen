@@ -21,9 +21,7 @@ const MessageList = ({
     >
       {messages.length === 0 && modelLoaded && !isStreaming && (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            Merhaba! Size nasıl yardımcı olabilirim?
-          </Text>
+          <Text style={styles.emptyText}>Hello! How can I help you?</Text>
         </View>
       )}
       {messages.map(message => (

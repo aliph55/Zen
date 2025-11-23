@@ -12,28 +12,25 @@ const ChatHeader = ({
 }) => {
   return (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>{title || 'Sohbet'}</Text>
+      <Text style={styles.headerTitle}>{title || ''}</Text>
       <View style={styles.statusContainer}>
         <Text style={styles.statusText}>{formatTime()}</Text>
         {modelLoaded ? (
           <View style={styles.statusIndicator}>
             <View style={[styles.statusDot, styles.statusDotActive]} />
-            <Text style={styles.statusText}>Model Hazır</Text>
+            <Text style={styles.statusText}>Model Ready</Text>
           </View>
         ) : isLoading ? (
           <View style={styles.statusIndicator}>
             <ActivityIndicator size="small" color="#007AFF" />
-            <Text style={styles.statusText}>Model Yükleniyor...</Text>
+            <Text style={styles.statusText}>Loading Model...</Text>
           </View>
         ) : modelLoadError ? (
           <View style={styles.statusIndicator}>
             <View style={[styles.statusDot, styles.statusDotError]} />
-            <Text style={styles.statusText}>Hata</Text>
+            <Text style={styles.statusText}>Error</Text>
           </View>
         ) : null}
-        <TouchableOpacity onPress={startNewGroup}>
-          <Text style={styles.headerButton}>Yeni Grup</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );

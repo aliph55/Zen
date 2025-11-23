@@ -54,9 +54,9 @@ const Chat = ({ route, navigation }) => {
       />
       {modelLoadError && (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Hata: {modelLoadError}</Text>
+          <Text style={styles.errorText}>Error: {modelLoadError}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={loadModel}>
-            <Text style={styles.retryButtonText}>Tekrar Dene</Text>
+            <Text style={styles.retryButtonText}>Try again</Text>
           </TouchableOpacity>
         </View>
       )}

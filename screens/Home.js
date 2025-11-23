@@ -14,47 +14,47 @@ import { useSelector } from 'react-redux';
 
 const Home = ({ navigation }) => {
   const [recentChats, setRecentChats] = useState([]);
-  const userInfo = useSelector(state => state.userInfo.user); // Get the full userInfo object
-  const userName = userInfo?.givenName; // Safely access givenName
+  const userInfo = useSelector(state => state.userInfo.user);
+  const userName = userInfo?.givenName || 'there';
 
-  // Load recent chats from AsyncStorage
   const loadRecentChats = async () => {
     try {
-      const savedGroups = await AsyncStorage.getItem('groups');
-      console.log(
-        'Home: Loading recent chats from AsyncStorage at',
-        new Date().toLocaleString(),
-        savedGroups ? 'Data found' : 'No data',
-      );
-      if (savedGroups) {
-        const parsedGroups = JSON.parse(savedGroups);
-        const chats = parsedGroups
-          .flatMap(group =>
-            group.chats.map(chat => ({
-              id: chat.id,
-              title: chat.title,
-              time: new Date(chat.lastOpened).toLocaleString(),
-              preview: chat.messages[0]?.text.slice(0, 50) || 'Mesaj yok...',
-              groupId: group.id,
-            })),
-          )
-          .sort((a, b) => new Date(b.time) - new Date(a.time))
-          .slice(0, 4); // Son 4 sohbet
-        setRecentChats(chats);
-        console.log('Home: Recent chats loaded, count:', chats.length);
-      } else {
+      const saved = await AsyncStorage.getItem('groups');
+      if (!saved) {
         setRecentChats([]);
-        console.log('Home: No chats found, resetting to empty');
+        return;
       }
-    } catch (error) {
-      console.error('Home: Recent chats yükleme hatası:', error);
+      const groups = JSON.parse(saved);
+      const chats = groups
+        .flatMap(group =>
+          group.chats.map(chat => ({
+            id: chat.id,
+            title: chat.title || 'New Chat',
+            preview: chat.messages[0]?.text?.slice(0, 60) || 'No messages yet',
+            time: new Date(chat.lastOpened).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            date: new Date(chat.lastOpened).toLocaleDateString(),
+            groupId: group.id,
+          })),
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time),
+        )
+        .slice(0, 6);
+
+      setRecentChats(chats);
+    } catch (e) {
+      console.error('Error loading chats:', e);
     }
   };
 
-  // Start new chat and update immediately
   const startNewChat = async () => {
     const newGroupId = Date.now().toString();
     const newChatId = (Date.now() + 1).toString();
+
     const newGroup = {
       id: newGroupId,
       name: 'General',
@@ -68,162 +68,120 @@ const Home = ({ navigation }) => {
         },
       ],
     };
-    try {
-      const savedGroups = await AsyncStorage.getItem('groups');
-      const groups = savedGroups ? JSON.parse(savedGroups) : [];
-      const updatedGroups = [...groups, newGroup];
-      await AsyncStorage.setItem('groups', JSON.stringify(updatedGroups));
-      console.log(
-        'Home: New chat added to AsyncStorage at',
-        new Date().toLocaleString(),
-      );
 
-      // Force reload to ensure latest data
-      await loadRecentChats();
+    try {
+      const existing = await AsyncStorage.getItem('groups');
+      const groups = existing ? JSON.parse(existing) : [];
+      await AsyncStorage.setItem(
+        'groups',
+        JSON.stringify([...groups, newGroup]),
+      );
+      loadRecentChats();
       navigation.navigate('Chat', { groupId: newGroupId, chatId: newChatId });
-    } catch (error) {
-      console.error('Home: Yeni grup oluşturma hatası:', error);
+    } catch (e) {
+      console.error('Error creating new chat:', e);
     }
   };
 
-  // Refresh chats when returning to Home
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      console.log('Home: Screen focused at', new Date().toLocaleString());
-      loadRecentChats();
-    });
-    loadRecentChats(); // Initial load
+    const unsubscribe = navigation.addListener('focus', loadRecentChats);
+    loadRecentChats();
     return unsubscribe;
   }, [navigation]);
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      <View style={styles.fixedHeader}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.menuButton}>
-            <Icon name="menu" size={24} color="#374151" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>AI Assistant</Text>
-          <TouchableOpacity style={styles.notificationButton}>
-            <Icon name="bell" size={24} color="#374151" />
-            <View style={styles.notificationDot} />
-          </TouchableOpacity>
-        </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>ZenAi</Text>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
-        <LinearGradient
-          colors={['#3B82F6', '#A855F7']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.welcomeCard}
-        >
-          <Text style={styles.welcomeTitle}>Hello! 👋 {userName}</Text>
-          <Text style={styles.welcomeSubtitle}>
-            How can I assist you today?
+        {/* Hero Section */}
+        <LinearGradient colors={['#6366F1', '#8B5CF6']} style={styles.heroCard}>
+          <Text style={styles.greeting}>Hey {userName} 👋</Text>
+          <Text style={styles.subtitle}>
+            What would you like to explore today?
           </Text>
-          <TouchableOpacity
-            style={styles.newChatButton}
-            activeOpacity={0.8}
-            onPress={startNewChat}
-          >
-            <View style={styles.newChatButtonContent}>
-              <Icon name="plus" size={20} color="#FFFFFF" />
-              <Text style={styles.newChatButtonText}>Start New Chat</Text>
-            </View>
-            <Icon name="chevron-right" size={20} color="#FFFFFF" />
+
+          <TouchableOpacity style={styles.primaryButton} onPress={startNewChat}>
+            <Icon name="plus" size={22} color="#fff" />
+            <Text style={styles.primaryButtonText}>Start a New Chat</Text>
           </TouchableOpacity>
         </LinearGradient>
 
-        <View style={styles.statsCard}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{recentChats.length}</Text>
-            <Text style={styles.statLabel}>Total Chats</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Answered Questions</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Daily Streak</Text>
-          </View>
-        </View>
-
+        {/* Recent Chats */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Chats</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('History')}>
-              <Text style={styles.seeAllButton}>See All</Text>
-            </TouchableOpacity>
+            {recentChats.length > 0 && (
+              <TouchableOpacity onPress={() => navigation.navigate('History')}>
+                <Text style={styles.seeAll}>See all</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {recentChats.map(chat => (
-            <TouchableOpacity
-              key={chat.id}
-              style={styles.chatCard}
-              activeOpacity={0.7}
-              onPress={() =>
-                navigation.navigate('Chat', {
-                  groupId: chat.groupId,
-                  chatId: chat.id,
-                })
-              }
-            >
-              <View style={styles.chatCardContent}>
-                <View style={styles.chatCardLeft}>
+          {recentChats.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Icon name="message-square" size={48} color="#D1D5DB" />
+              <Text style={styles.emptyText}>No chats yet</Text>
+              <Text style={styles.emptySubtext}>
+                Start a conversation to see it here
+              </Text>
+            </View>
+          ) : (
+            recentChats.map(chat => (
+              <TouchableOpacity
+                key={chat.id}
+                style={styles.chatItem}
+                activeOpacity={0.7}
+                onPress={() =>
+                  navigation.navigate('Chat', {
+                    groupId: chat.groupId,
+                    chatId: chat.id,
+                  })
+                }
+              >
+                <View style={styles.chatIcon}>
+                  <Icon name="message-circle" size={20} color="#6366F1" />
+                </View>
+                <View style={styles.chatContent}>
                   <Text style={styles.chatTitle}>{chat.title}</Text>
                   <Text style={styles.chatPreview} numberOfLines={1}>
                     {chat.preview}
                   </Text>
                 </View>
-                <View style={styles.chatCardRight}>
-                  <View style={styles.timeContainer}>
-                    <Icon name="clock" size={12} color="#9CA3AF" />
-                    <Text style={styles.chatTime}>{chat.time}</Text>
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
+                <Text style={styles.chatTime}>{chat.time}</Text>
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       </ScrollView>
 
-      <View style={styles.tabBar}>
-        <TouchableOpacity style={styles.tabItem}>
-          <View style={styles.activeTabIcon}>
-            <Icon name="home" size={20} color="#FFFFFF" />
-          </View>
-          <Text style={styles.activeTabLabel}>Home</Text>
+      {/* Modern Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity style={styles.navItemActive}>
+          <Icon name="home" size={24} color="#6366F1" />
+          <Text style={styles.navLabelActive}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => navigation.navigate('Chat')}
-          style={styles.tabItem}
-        >
-          <Icon name="message-square" size={24} color="#9CA3AF" />
-          <Text style={styles.tabLabel}>Chat</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+          style={styles.navItem}
           onPress={() => navigation.navigate('History')}
-          style={styles.tabItem}
         >
           <Icon name="clock" size={24} color="#9CA3AF" />
-          <Text style={styles.tabLabel}>History</Text>
+          <Text style={styles.navLabel}>History</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          style={styles.navItem}
           onPress={() => navigation.navigate('Profile')}
-          style={styles.tabItem}
         >
           <Icon name="user" size={24} color="#9CA3AF" />
-          <Text style={styles.tabLabel}>Profile</Text>
+          <Text style={styles.navLabel}>Profile</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -231,166 +189,97 @@ const Home = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
-  fixedHeader: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 4,
-    zIndex: 1000,
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  header: {
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 24,
   },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-  },
-  menuButton: { padding: 4 },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1F2937',
-    flex: 1,
-    textAlign: 'center',
-  },
-  notificationButton: { position: 'relative', padding: 4 },
-  notificationDot: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 8,
-    height: 8,
-    backgroundColor: '#EF4444',
-    borderRadius: 4,
-  },
-  scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: 80 },
-  welcomeCard: { margin: 20, padding: 20, borderRadius: 16 },
-  welcomeTitle: {
-    fontSize: 24,
+  headerTitle: { fontSize: 28, fontWeight: '800', color: '#1E293B' },
+  scrollContent: { paddingBottom: 100 },
+  heroCard: { margin: 20, borderRadius: 24, padding: 28 },
+  greeting: {
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+    color: '#fff',
     marginBottom: 8,
   },
-  welcomeSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 16,
-  },
-  newChatButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  subtitle: { fontSize: 16, color: '#E0E7FF', marginBottom: 24 },
+  primaryButton: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
-  newChatButtonContent: { flexDirection: 'row', alignItems: 'center' },
-  newChatButtonText: {
-    color: '#FFFFFF',
+  primaryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
     fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 8,
+    marginLeft: 10,
   },
-  statsCard: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 20,
-    marginTop: 24,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  statItem: { alignItems: 'center', flex: 1 },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  statLabel: { fontSize: 11, color: '#6B7280' },
-  statDivider: { width: 1, backgroundColor: '#E5E7EB' },
-  section: { paddingHorizontal: 20, marginTop: 24 },
+  section: { paddingHorizontal: 20 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  sectionTitle: {
+  sectionTitle: { fontSize: 20, fontWeight: '700', color: '#1E293B' },
+  seeAll: { fontSize: 15, color: '#6366F1', fontWeight: '500' },
+  emptyState: { alignItems: 'center', paddingVertical: 60 },
+  emptyText: {
     fontSize: 18,
+    color: '#64748B',
+    marginTop: 16,
     fontWeight: '600',
-    color: '#374151',
   },
-  seeAllButton: {
-    fontSize: 14,
-    color: '#3B82F6',
-    fontWeight: '500',
-  },
-  chatCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+  emptySubtext: { fontSize: 14, color: '#94A3B8', marginTop: 8 },
+  chatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
     padding: 16,
+    borderRadius: 16,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  chatCardContent: { flexDirection: 'row', justifyContent: 'space-between' },
-  chatCardLeft: { flex: 1, marginRight: 12 },
-  chatTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  chatPreview: { fontSize: 14, color: '#6B7280' },
-  chatCardRight: { justifyContent: 'flex-start' },
-  timeContainer: { flexDirection: 'row', alignItems: 'center' },
-  chatTime: { fontSize: 12, color: '#9CA3AF', marginLeft: 4 },
-  tabBar: {
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    paddingVertical: 8,
-    paddingBottom: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 8,
-  },
-  tabItem: { flex: 1, alignItems: 'center', paddingVertical: 8 },
-  activeTabIcon: {
-    backgroundColor: '#3B82F6',
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+  chatIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    marginRight: 14,
   },
-  tabLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 4 },
-  activeTabLabel: {
+  chatContent: { flex: 1 },
+  chatTitle: { fontSize: 16, fontWeight: '600', color: '#1E293B' },
+  chatPreview: { fontSize: 14, color: '#64748B', marginTop: 4 },
+  chatTime: { fontSize: 12, color: '#94A3B8' },
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingBottom: 30,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  navItem: { flex: 1, alignItems: 'center' },
+  navItemActive: { flex: 1, alignItems: 'center' },
+  navLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 4 },
+  navLabelActive: {
     fontSize: 11,
-    color: '#3B82F6',
-    fontWeight: '500',
+    color: '#6366F1',
+    fontWeight: '600',
+    marginTop: 4,
   },
 });
 
