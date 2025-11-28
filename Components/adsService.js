@@ -12,10 +12,8 @@ import { Alert, AppState } from 'react-native';
 // Test ID'leri
 const adUnitIds = {
   banner: __DEV__ ? TestIds.BANNER : 'ca-app-pub-xxxxxxxxxxxxx/yyyyyyyyyy',
-  interstitial: __DEV__
-    ? TestIds.INTERSTITIAL
-    : 'ca-app-pub-xxxxxxxxxxxxx/yyyyyyyyyy',
-  rewarded: __DEV__ ? TestIds.REWARDED : 'ca-app-pub-xxxxxxxxxxxxx/yyyyyyyyyy',
+  interstitial: 'ca-app-pub-6721519204185712/8831139295',
+  rewarded: 'ca-app-pub-6721519204185712/2984896188',
 };
 
 // Global değişkenler
