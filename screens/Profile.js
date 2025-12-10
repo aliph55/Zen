@@ -57,7 +57,7 @@ const Profile = ({ navigation }) => {
             <View style={styles.avatarBorder}>
               <Image source={{ uri: userInfo?.photo }} style={styles.avatar} />
             </View>
-            <Text style={styles.name}>{userInfo?.name || 'Loak User'}</Text>
+            <Text style={styles.name}>{userInfo?.name || 'ZenAi User'}</Text>
             <Text style={styles.email}>{userInfo?.email}</Text>
           </View>
 
@@ -107,7 +107,7 @@ const Profile = ({ navigation }) => {
           <View style={styles.modalLight}>
             <Text style={styles.modalTitleLight}>Privacy Policy</Text>
             <Text style={styles.modalBodyLight}>
-              Loak works 100% on your phone.{'\n'}
+              ZenAI works 100% on your phone.{'\n'}
               Nothing is saved on any server.{'\n\n'}
               Your chats, photos, voice — all stay only on your device.{'\n\n'}
               Only Google Sign-In is used (name + email + photo).{'\n'}
@@ -129,7 +129,7 @@ const Profile = ({ navigation }) => {
       <Modal visible={aboutVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalLight}>
-            <Text style={styles.modalTitleLight}>About Loak</Text>
+            <Text style={styles.modalTitleLight}>About ZenAI</Text>
             <Text style={styles.modalBodyLight}>
               Your 100% local AI assistant.{'\n'}
               Runs completely on-device after sign-in.{'\n\n'}

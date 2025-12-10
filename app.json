@@ -1,7 +1,7 @@
 {
   "name": "Zen",
   "displayName": "Zen",
-  "version": "6.0.0",
+  "version": "9.0.0",
   "react-native-google-mobile-ads": {
     "android_app_id": "ca-app-pub-6721519204185712~3903118387",
     "ios_app_id": "ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy",

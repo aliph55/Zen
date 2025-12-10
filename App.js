@@ -12,7 +12,7 @@ import Signin from './screens/Signin';
 import { store } from './redux/store';
 import { Provider } from 'react-redux';
 import { AdsProvider } from './contexts/adsContext';
-import { ModelProvider } from './contexts/ModelContext'; // YENİ IMPORT
+import { ModelProvider } from './contexts/ModelContext';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,43 +20,34 @@ const App = () => {
   return (
     <Provider store={store}>
       <ModelProvider>
-        {/* MODEL PROVIDER EKLENDI */}
         <AdsProvider>
           <NavigationContainer>
-            <Stack.Navigator initialRouteName="Download">
-              <Stack.Screen name="Download" options={{ headerShown: false }}>
+            <Stack.Navigator
+              initialRouteName="Presentation"
+              screenOptions={{ headerShown: false }}
+            >
+              {/* 1. İLK SAYFA: Presentation */}
+              <Stack.Screen name="Presentation" component={Presentation} />
+
+              {/* 2. İKİNCİ SAYFA: Download */}
+              <Stack.Screen name="Download">
                 {({ navigation }) => (
                   <Download
-                    onDownloadComplete={modelPath => {
-                      console.log('✅ Model hazır, navigasyon başlıyor...');
-                      navigation.replace('Signin');
+                    onDownloadComplete={() => {
+                      console.log('✅ Model ready, going to Home...');
+                      navigation.replace('Home');
                     }}
                   />
                 )}
               </Stack.Screen>
 
-              <Stack.Screen
-                name="Signin"
-                component={Signin}
-                options={{ headerShown: false }}
-              />
+              {/* 3. ÜÇÜNCÜ SAYFA: Home */}
+              <Stack.Screen name="Home" component={Home} />
 
-              <Stack.Screen
-                name="Home"
-                component={Home}
-                options={{ headerShown: false }}
-              />
-
+              {/* DİĞER SAYFALAR */}
+              <Stack.Screen name="Signin" component={Signin} />
               <Stack.Screen name="Profile" component={Profile} />
-
-              <Stack.Screen
-                name="Presentation"
-                component={Presentation}
-                options={{ headerShown: false }}
-              />
-
               <Stack.Screen name="Chat" component={Chat} />
-
               <Stack.Screen name="History" component={History} />
             </Stack.Navigator>
           </NavigationContainer>

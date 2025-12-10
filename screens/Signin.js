@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  Image,
   ActivityIndicator,
 } from 'react-native';
 import {
@@ -15,17 +14,22 @@ import {
 } from '@react-native-google-signin/google-signin';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useDispatch } from 'react-redux';
-import { setUserInfo, resetUserInfo } from '../redux/userInfo'; // Actions'ları import et
+import { setUserInfo, resetUserInfo } from '../redux/userInfo';
 
 const Signin = ({ navigation }) => {
   const [userInfo, setUserInfoLocal] = useState(null);
   const [isSigninInProgress, setIsSigninInProgress] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const dispatch = useDispatch();
+  let dispatch;
+  try {
+    dispatch = useDispatch();
+  } catch (error) {
+    console.warn('Redux dispatch error:', error);
+    dispatch = null;
+  }
 
   useEffect(() => {
-    // Google Sign-In'i yapılandır
     GoogleSignin.configure({
       webClientId:
         '53852373022-rkjsk0003jki7e4d2g0mba89a95udble.apps.googleusercontent.com',
@@ -33,7 +37,6 @@ const Signin = ({ navigation }) => {
       forceCodeForRefreshToken: true,
     });
 
-    // Önceden giriş yapılmış mı kontrol et
     checkSignInStatus();
   }, []);
 
@@ -41,10 +44,7 @@ const Signin = ({ navigation }) => {
     try {
       setIsLoading(true);
 
-      // AsyncStorage'dan token kontrol et
       const userToken = await AsyncStorage.getItem('userToken');
-
-      // Google'dan mevcut kullanıcıyı kontrol et
       const currentUser = await GoogleSignin.getCurrentUser();
 
       if (currentUser && userToken) {
@@ -52,7 +52,67 @@ const Signin = ({ navigation }) => {
           currentUser.user || currentUser.data?.user || currentUser;
         setUserInfoLocal(userData);
 
-        // Redux'a sadeleştirilmiş kullanıcı bilgilerini kaydet
+        // Redux'a kaydet (varsa)
+        if (dispatch) {
+          dispatch(
+            setUserInfo({
+              givenName: userData.givenName || '',
+              familyName: userData.familyName || '',
+              email: userData.email || '',
+              photo: userData.photo || '',
+              name: userData.name || '',
+              id: userData.id || '',
+            }),
+          );
+        }
+
+        // Giriş yapılmış, direkt Home'a git
+        console.log('✅ User is signed in, going to Home');
+        navigation.replace('Download');
+      } else {
+        console.log('❌ No user found, staying on Signin');
+      }
+    } catch (error) {
+      console.log('User status check error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const navigateToHome = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Download' }],
+    });
+  };
+
+  const saveUserData = async userInfo => {
+    try {
+      await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+      await AsyncStorage.setItem('userToken', userInfo.idToken || 'logged_in');
+      await AsyncStorage.setItem('isLoggedIn', 'true');
+    } catch (error) {
+      console.error('Data save error:', error);
+    }
+  };
+
+  const signIn = async () => {
+    try {
+      setIsSigninInProgress(true);
+
+      await GoogleSignin.hasPlayServices({
+        showPlayServicesUpdateDialog: true,
+      });
+
+      const signInResult = await GoogleSignin.signIn();
+      console.log('Sign in successful:', signInResult);
+
+      const userData =
+        signInResult.user || signInResult.data?.user || signInResult;
+      setUserInfoLocal(userData);
+
+      // Redux'a kaydet (varsa)
+      if (dispatch) {
         dispatch(
           setUserInfo({
             givenName: userData.givenName || '',
@@ -63,80 +123,23 @@ const Signin = ({ navigation }) => {
             id: userData.id || '',
           }),
         );
-        // navigateToHome();
-        navigation.navigate('Home');
       }
-    } catch (error) {
-      console.log('Kullanıcı durumu kontrol hatası:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const navigateToHome = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Home' }],
-    });
-  };
-
-  const saveUserData = async userInfo => {
-    try {
-      await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
-      await AsyncStorage.setItem('userToken', userInfo.idToken || 'logged_in');
-      await AsyncStorage.setItem('isLoggedIn', 'true');
-    } catch (error) {
-      console.error('Veri kaydetme hatası:', error);
-    }
-  };
-
-  const signIn = async () => {
-    try {
-      setIsSigninInProgress(true);
-
-      // Play Services kontrolü (sadece Android)
-      await GoogleSignin.hasPlayServices({
-        showPlayServicesUpdateDialog: true,
-      });
-
-      // Giriş yap
-      const signInResult = await GoogleSignin.signIn();
-      console.log('Giriş başarılı:', signInResult);
-
-      const userData =
-        signInResult.user || signInResult.data?.user || signInResult;
-      setUserInfoLocal(userData);
-
-      // Redux'a sadeleştirilmiş kullanıcı bilgilerini kaydet
-      dispatch(
-        setUserInfo({
-          givenName: userData.givenName || '',
-          familyName: userData.familyName || '',
-          email: userData.email || '',
-          photo: userData.photo || '',
-          name: userData.name || '',
-          id: userData.id || '',
-        }),
-      );
-
-      // Token'ları al
       const tokens = await GoogleSignin.getTokens();
       console.log('Access Token:', tokens.accessToken);
       console.log('ID Token:', tokens.idToken);
 
-      // UserInfo'ya token'ları ekle
       signInResult.idToken = tokens.idToken;
       signInResult.accessToken = tokens.accessToken;
 
-      // Kullanıcı bilgilerini kaydet
       await saveUserData(signInResult);
 
-      // Başarılı giriş mesajı
       const userName =
         userData.name ||
         userData.givenName ||
         userData.email?.split('@')[0] ||
         'User';
+
       Alert.alert(
         'Success',
         `Welcome, ${userName}!`,
@@ -174,7 +177,9 @@ const Signin = ({ navigation }) => {
     try {
       await GoogleSignin.signOut();
       await AsyncStorage.multiRemove(['userInfo', 'userToken', 'isLoggedIn']);
-      dispatch(resetUserInfo());
+      if (dispatch) {
+        dispatch(resetUserInfo());
+      }
       setUserInfoLocal(null);
       Alert.alert('Success', 'Logged out');
       navigation.reset({
@@ -187,44 +192,10 @@ const Signin = ({ navigation }) => {
     }
   };
 
-  const revokeAccess = async () => {
-    try {
-      await GoogleSignin.revokeAccess();
-      await GoogleSignin.signOut();
-      await AsyncStorage.clear();
-      dispatch(resetUserInfo());
-      setUserInfoLocal(null);
-      Alert.alert('Success', 'Access revoked');
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Signin' }],
-      });
-    } catch (error) {
-      console.error('Revoke access error:', error);
-      Alert.alert('Error', 'An error occurred while revoking access');
-    }
-  };
-
-  const getUserInfo = () => {
-    if (!userInfo) return null;
-    const user = userInfo.user || userInfo.data?.user || userInfo;
-    return {
-      name: user.name || user.givenName || user.displayName || 'Anonymous',
-      email: user.email || 'No email',
-      photo: user.photo || user.photoURL || null,
-      id: user.id || user.uid || 'No ID',
-      familyName: user.familyName || '',
-    };
-  };
-
-  const user = getUserInfo();
-
-  console.log(user);
-
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#4285F4" />
+        <ActivityIndicator size="large" color="#6366f1" />
         <Text style={styles.loadingText}>Checking...</Text>
       </View>
     );
@@ -232,7 +203,11 @@ const Signin = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Google Sign-In</Text>
+      <View style={styles.logoContainer}>
+        <Text style={styles.logo}>🤖</Text>
+        <Text style={styles.appName}>ZenAI</Text>
+        <Text style={styles.tagline}>Your Offline AI Assistant</Text>
+      </View>
 
       <View style={styles.signInContainer}>
         <TouchableOpacity
@@ -269,115 +244,77 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8f9fd',
     padding: 20,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 40,
-    color: '#333',
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 60,
+  },
+  logo: {
+    fontSize: 80,
+    marginBottom: 16,
+  },
+  appName: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  tagline: {
+    fontSize: 16,
+    color: '#64748b',
+    fontWeight: '500',
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: '#64748b',
+    fontWeight: '500',
   },
   signInContainer: {
     alignItems: 'center',
+    gap: 16,
   },
   customGoogleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4285F4',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 24,
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+    minWidth: 250,
+    justifyContent: 'center',
   },
   googleIconContainer: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     backgroundColor: 'white',
-    borderRadius: 4,
-    marginRight: 10,
+    borderRadius: 6,
+    marginRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   googleG: {
-    color: '#4285F4',
-    fontSize: 16,
+    color: '#6366f1',
+    fontSize: 18,
     fontWeight: 'bold',
   },
   googleButtonText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   googleSignInButton: {
     width: 250,
     height: 48,
-  },
-  userContainer: {
-    alignItems: 'center',
-  },
-  userPhoto: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 20,
-    borderWidth: 3,
-    borderColor: '#4285F4',
-  },
-  userName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 5,
-    color: '#333',
-  },
-  userEmail: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 5,
-  },
-  userId: {
-    fontSize: 12,
-    color: '#999',
-    marginBottom: 30,
-  },
-  button: {
-    backgroundColor: '#4285F4',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginVertical: 10,
-    width: 200,
-    alignItems: 'center',
-  },
-  continueButton: {
-    backgroundColor: '#34A853',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginVertical: 10,
-    width: 200,
-    alignItems: 'center',
-  },
-  revokeButton: {
-    backgroundColor: '#DB4437',
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
 
