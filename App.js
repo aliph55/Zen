@@ -23,11 +23,12 @@ const App = () => {
         <AdsProvider>
           <NavigationContainer>
             <Stack.Navigator
-              initialRouteName="Signin"
+              initialRouteName="Presentation"
               screenOptions={{ headerShown: false }}
             >
               {/* 1. İLK SAYFA: Presentation */}
               <Stack.Screen name="Presentation" component={Presentation} />
+
               {/* 2. İKİNCİ SAYFA: Download */}
               <Stack.Screen name="Download">
                 {({ navigation }) => (
@@ -39,8 +40,10 @@ const App = () => {
                   />
                 )}
               </Stack.Screen>
+
               {/* 3. ÜÇÜNCÜ SAYFA: Home */}
               <Stack.Screen name="Home" component={Home} />
+
               {/* DİĞER SAYFALAR */}
               <Stack.Screen name="Signin" component={Signin} />
               <Stack.Screen name="Profile" component={Profile} />

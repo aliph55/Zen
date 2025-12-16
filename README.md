@@ -97,25 +97,3 @@ To learn more about React Native, take a look at the following resources:
 - [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
   google.com, pub-6721519204185712, DIRECT, f08c47fec0942fa0
   ilk tanıtım . sonra download sayfa . sonra sign in
-
-Re-enter new password:
-
-What is your first and last name?
-[Unknown]: pourhassan
-What is the name of your organizational unit?
-[Unknown]: Zen
-What is the name of your organization?
-[Unknown]: Zen
-What is the name of your City or Locality?
-[Unknown]: kahramanmarh
-What is the name of your State or Province?
-[Unknown]: Kahramanmarash
-What is the two-letter country code for this unit?
-[Unknown]: 46
-Is CN=pourhassan, OU=Zen, O=Zen, L=kahramanmarh, ST=Kahramanmarash, C=46 correct?
-[no]: Y
-
-Generating 2,048 bit RSA key pair and self-signed certificate (SHA256withRSA) with a validity of 10,000 days
-for: CN=pourhassan, OU=Zen, O=Zen, L=kahramanmarh, ST=Kahramanmarash, C=46
-[Storing upload-keystore.jks]
-PS C:\Zen\android\app>

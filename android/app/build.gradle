@@ -85,8 +85,8 @@ android {
         applicationId "com.zenai"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10
-        versionName "2.70"
+        versionCode 9
+        versionName "2.60"
         
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
@@ -111,10 +111,10 @@ android {
             keyPassword 'android'
         }
         release {
-        storeFile file('upload-keystore.jks')
-            storePassword 'android'
-            keyAlias 'upload'
-            keyPassword 'android'
+            storeFile file(MYAPP_UPLOAD_STORE_FILE)
+            storePassword MYAPP_UPLOAD_STORE_PASSWORD
+            keyAlias MYAPP_UPLOAD_KEY_ALIAS
+            keyPassword MYAPP_UPLOAD_KEY_PASSWORD
         }
     }
     
@@ -125,7 +125,7 @@ android {
         release {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-            signingConfig signingConfigs.debug
+            signingConfig signingConfigs.release
             
             ndk {
                 debugSymbolLevel 'FULL'
