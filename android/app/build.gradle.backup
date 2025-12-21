@@ -2,6 +2,7 @@ apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")
+//apply plugin: 'com.google.gms.google-services'
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -85,21 +86,26 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 11
-        versionName "2.74"
+        versionName "2.71"
         
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a"
         }
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+            }
+        }
     }
     
     // 16KB PAGE SIZE SUPPORT - CRITICAL FOR GOOGLE PLAY
-    packaging {
+    packagingOptions {
         jniLibs {
             useLegacyPackaging = false
         }
-        resources {
-            pickFirsts += ['**/libc++_shared.so', '**/libjsi.so', '**/libfbjni.so']
-        }
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libjsi.so'
+        pickFirst '**/libfbjni.so'
     }
     
     signingConfigs {
@@ -110,10 +116,10 @@ android {
             keyPassword 'android'
         }
         release {
-             storeFile file('upload-keystore.jks')
-            storePassword 'android'
-            keyAlias 'upload'
-            keyPassword 'android'
+          storeFile file('upload-keystore.jks')
+          storePassword 'android'
+          keyAlias 'upload'            // âœ… DOÄžRU!
+          keyPassword 'android'
         }
     }
     
@@ -132,8 +138,6 @@ android {
         }
     }
 }
-    
- 
 
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
