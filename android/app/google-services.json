@@ -1,9 +1,47 @@
 {
-  "installed": {
-    "client_id": "53852373022-e1hhtpn9s4scehpch49utt8rjpfs5p2j.apps.googleusercontent.com",
+  "project_info": {
+    "project_number": "53852373022",
     "project_id": "sharp-bucksaw-423214-g0",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs"
-  }
+    "storage_bucket": "sharp-bucksaw-423214-g0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:53852373022:android:568034177379ff9ffcee0f",
+        "android_client_info": {
+          "package_name": "com.zenai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "53852373022-e1hhtpn9s4scehpch49utt8rjpfs5p2j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zenai",
+            "certificate_hash": "7a8f500632f092549604cac5e911789c9fc854fc"
+          }
+        },
+        {
+          "client_id": "53852373022-th52gtqcb9bah24899cunbl5i6n1bol1.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3lCNTXP_uG-pBitKYl_kKN2TaPQ45XjE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "53852373022-rkjsk0003jki7e4d2g0mba89a95udble.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
 }

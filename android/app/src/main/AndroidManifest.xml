@@ -34,4 +34,7 @@
             </intent-filter>
         </activity>
     </application>
+    <queries>
+    <package android:name="com.google.android.gms" />
+</queries>
 </manifest>

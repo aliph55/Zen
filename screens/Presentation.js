@@ -98,7 +98,7 @@ const Presentation = ({ navigation }) => {
       await AsyncStorage.setItem('hasSeenPresentation', 'true');
       // Download sayfasına git
       console.log('🚀 Navigating to Download');
-      navigation.replace('Download');
+      navigation.replace('Signin');
     } catch (error) {
       console.error('❌ Save error:', error);
     }
