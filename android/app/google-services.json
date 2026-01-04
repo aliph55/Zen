@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "53852373022-jhk4ot91ch3l5musjqcn83bt4j4ls15n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zenai",
+            "certificate_hash": "140e21346a1ce320a4656572b68b875c33b4d98b"
+          }
+        },
+        {
           "client_id": "53852373022-th52gtqcb9bah24899cunbl5i6n1bol1.apps.googleusercontent.com",
           "client_type": 3
         }
