@@ -1,6 +1,6 @@
 {
   "name": "zenai",
-  "version": "17",
+  "version": "19",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
