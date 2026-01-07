@@ -3,12 +3,11 @@ import * as ort from 'onnxruntime-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import { showRewardedAd } from '../adsService';
-import { useModel } from '../../contexts/ModelContext'; // YENİ IMPORT
+import { useModel } from '../../contexts/ModelContext';
 
 export const useChatLogic = ({ route, navigation }) => {
   const { groupId, chatId } = route.params || {};
 
-  // GLOBAL MODEL CONTEXT'TEN AL
   const {
     modelLoaded,
     modelLoadError,
@@ -40,703 +39,331 @@ export const useChatLogic = ({ route, navigation }) => {
   const streamingMessageId = useRef(null);
   const saveTimeoutRef = useRef(null);
 
-  // MODEL YÜKLEME - SADECE İLK DEFA ÇALIŞTIR
   useEffect(() => {
     const initializeModel = async () => {
       if (!modelLoaded && !modelIsLoading) {
         console.log('🔄 Model henüz yüklenmedi, yükleniyor...');
         await loadModel();
         await loadVocab();
-      } else {
-        console.log('✅ Model zaten yüklü veya yükleniyor, bekleniyor...');
       }
     };
-
     initializeModel();
-  }, []); // Boş dependency array - sadece mount'ta çalışır
-
-  const testAsyncStorage = async () => {
-    try {
-      const testData = { test: 'Merhaba, dünya!' };
-      await AsyncStorage.setItem('testKey', JSON.stringify(testData));
-      const result = await AsyncStorage.getItem('testKey');
-      console.log(
-        'AsyncStorage testi başarılı, alınan veri:',
-        JSON.parse(result),
-      );
-    } catch (error) {
-      console.error('AsyncStorage test hatası:', error);
-      Alert.alert('Hata', `AsyncStorage testi başarısız: ${error.message}`);
-    }
-  };
-
-  const checkStorageSize = async () => {
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      let totalSize = 0;
-      for (const key of keys) {
-        const data = await AsyncStorage.getItem(key);
-        totalSize += ((data?.length || 0) * 2) / 1024;
-      }
-      console.log(
-        `AsyncStorage kullanılan toplam boyut: ${totalSize.toFixed(2)} KB`,
-      );
-      if (totalSize > 5000) {
-        Alert.alert(
-          'Uyarı',
-          'Depolama alanı dolmak üzere, eski sohbetler temizleniyor...',
-        );
-        await clearOldChats();
-      }
-    } catch (error) {
-      console.error('Depolama boyutu kontrol hatası:', error);
-    }
-  };
-
-  const clearOldChats = async () => {
-    try {
-      const savedGroups = await AsyncStorage.getItem('groups');
-      if (savedGroups) {
-        const parsed = JSON.parse(savedGroups);
-        const updatedGroups = parsed.map(g => ({
-          ...g,
-          chats: g.chats.filter(c => {
-            const lastOpened = new Date(c.lastOpened);
-            const daysDiff = (new Date() - lastOpened) / (1000 * 60 * 60 * 24);
-            return daysDiff <= 30;
-          }),
-        }));
-        await AsyncStorage.setItem('groups', JSON.stringify(updatedGroups));
-        setGroups(updatedGroups);
-        console.log('Eski sohbetler temizlendi');
-      }
-    } catch (error) {
-      console.error('Eski sohbetleri temizleme hatası:', error);
-      Alert.alert('Hata', `Eski sohbetler temizlenemedi: ${error.message}`);
-    }
-  };
-
-  const saveGroups = useCallback(async groupsToSave => {
-    try {
-      console.log('saveGroups çağrıldı');
-      const serializedGroups = groupsToSave.map(g => ({
-        ...g,
-        chats: g.chats.map(c => ({
-          ...c,
-          startDate:
-            c.startDate instanceof Date
-              ? c.startDate.toISOString()
-              : c.startDate,
-          lastOpened:
-            c.lastOpened instanceof Date
-              ? c.lastOpened.toISOString()
-              : c.lastOpened,
-          messages: c.messages.map(m => ({
-            ...m,
-            timestamp:
-              m.timestamp instanceof Date
-                ? m.timestamp.toISOString()
-                : m.timestamp,
-          })),
-        })),
-      }));
-      const jsonString = JSON.stringify(serializedGroups);
-      await AsyncStorage.setItem('groups', jsonString);
-      console.log("✅ Gruplar başarıyla AsyncStorage'a kaydedildi");
-    } catch (error) {
-      console.error('❌ Gruplar kaydetme hatası:', error);
-      Alert.alert('Hata', `Gruplar kaydedilemedi: ${error.message}`);
-    }
   }, []);
 
-  const debugAsyncStorage = async () => {
-    try {
-      const data = await AsyncStorage.getItem('groups');
-      console.log(
-        '🔍 Debug AsyncStorage groups:',
-        data ? JSON.parse(data) : 'null',
-      );
-    } catch (error) {
-      console.error('🔍 Debug AsyncStorage error:', error);
-    }
-  };
+  // ============================================
+  // MODEL INPUT/OUTPUT'LARI İNCELE
+  // ============================================
+  const inspectModelInputs = useCallback(() => {
+    if (!sessionRef.current) return;
 
-  const loadGroups = async () => {
-    try {
-      console.log("loadGroups çağrıldı, AsyncStorage'dan okuma başlıyor...", {
-        groupId,
-        chatId,
-      });
-      const savedGroups = await AsyncStorage.getItem('groups');
-
-      if (savedGroups) {
-        const parsed = JSON.parse(savedGroups);
-        let loadedGroups = parsed.map(g => ({
-          ...g,
-          chats: Array.isArray(g.chats)
-            ? g.chats.map(c => ({
-                ...c,
-                startDate: new Date(c.startDate),
-                lastOpened: new Date(c.lastOpened),
-                messages: Array.isArray(c.messages)
-                  ? c.messages.map(m => ({
-                      ...m,
-                      timestamp: new Date(m.timestamp),
-                    }))
-                  : [],
-              }))
-            : [],
-        }));
-
-        setGroups(loadedGroups);
-
-        if (groupId && chatId) {
-          const currentGroup = loadedGroups.find(g => g.id === groupId);
-          if (currentGroup) {
-            const currentChat = currentGroup.chats.find(c => c.id === chatId);
-            if (currentChat) {
-              setCurrentGroupId(groupId);
-              setCurrentGroupName(currentGroup.name);
-              setCurrentChatId(chatId);
-              setMessages(currentChat.messages);
-              setTitle(currentChat.title);
-              setStartDate(currentChat.startDate);
-              setLastOpened(new Date());
-
-              const updatedGroups = loadedGroups.map(g =>
-                g.id === groupId
-                  ? {
-                      ...g,
-                      chats: g.chats.map(c =>
-                        c.id === chatId ? { ...c, lastOpened: new Date() } : c,
-                      ),
-                    }
-                  : g,
-              );
-              await saveGroups(updatedGroups);
-            } else {
-              createNewChatIfNeeded();
-            }
-          } else {
-            createNewChatIfNeeded();
-          }
-        } else {
-          createNewChatIfNeeded();
-        }
-      } else {
-        const defaultGroup = {
-          id: Date.now().toString(),
-          name: 'Genel',
-          chats: [],
-        };
-        setGroups([defaultGroup]);
-        setCurrentGroupId(defaultGroup.id);
-        setCurrentGroupName(defaultGroup.name);
-        await saveGroups([defaultGroup]);
-        createNewChatIfNeeded();
-      }
-    } catch (error) {
-      console.error('❌ Gruplar yükleme hatası:', error);
-      Alert.alert('Hata', `Gruplar yüklenemedi: ${error.message}`);
-    }
-  };
-
-  const debouncedSave = useCallback(
-    groupsToSave => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      saveTimeoutRef.current = setTimeout(() => {
-        saveGroups(groupsToSave);
-      }, 1000);
-    },
-    [saveGroups],
-  );
-
-  const updateCurrentChat = useCallback(
-    currentMessages => {
-      if (!currentGroupId || !currentChatId || currentMessages.length === 0)
-        return null;
-
-      let currentTitle = title;
-      if (
-        !currentTitle &&
-        currentMessages.length > 0 &&
-        currentMessages[0].sender === 'user'
-      ) {
-        currentTitle =
-          currentMessages[0].text.slice(0, 50) +
-          (currentMessages[0].text.length > 50 ? '...' : '');
-      }
-
-      return {
-        id: currentChatId,
-        title: currentTitle || 'Sohbet',
-        startDate: startDate || new Date(),
-        lastOpened: new Date(),
-        messages: currentMessages,
-      };
-    },
-    [currentGroupId, currentChatId, title, startDate],
-  );
-
-  const startNewGroup = () => {
-    const updatedChat = updateCurrentChat(messages);
-    let newGroups = [...groups];
-
-    if (updatedChat) {
-      newGroups = newGroups.map(g =>
-        g.id === currentGroupId
-          ? {
-              ...g,
-              chats: g.chats.map(c =>
-                c.id === currentChatId ? updatedChat : c,
-              ),
-            }
-          : g,
-      );
-    }
-
-    const newGroupId = Date.now().toString();
-    const newChatId = (Date.now() + 1).toString();
-    const newGroup = {
-      id: newGroupId,
-      name: 'Genel',
-      chats: [
-        {
-          id: newChatId,
-          title: 'Sohbet',
-          startDate: new Date(),
-          lastOpened: new Date(),
-          messages: [],
-        },
-      ],
-    };
-
-    newGroups = [...newGroups, newGroup];
-    setGroups(newGroups);
-    setCurrentGroupId(newGroupId);
-    setCurrentGroupName(newGroup.name);
-    setMessages([]);
-    setCurrentChatId(newChatId);
-    setTitle('Sohbet');
-    setStartDate(new Date());
-    setLastOpened(new Date());
-    saveGroups(newGroups);
-    navigation.setParams({ groupId: newGroupId, chatId: newChatId });
-  };
-
-  const startNewChat = () => {
-    if (!currentGroupId) return;
-
-    const updatedChat = updateCurrentChat(messages);
-    let newGroups = [...groups];
-
-    if (updatedChat) {
-      newGroups = newGroups.map(g =>
-        g.id === currentGroupId
-          ? {
-              ...g,
-              chats: g.chats.map(c =>
-                c.id === currentChatId ? updatedChat : c,
-              ),
-            }
-          : g,
-      );
-    }
-
-    const newChatId = Date.now().toString();
-    const newChat = {
-      id: newChatId,
-      title: 'Sohbet',
-      startDate: new Date(),
-      lastOpened: new Date(),
-      messages: [],
-    };
-
-    newGroups = newGroups.map(g =>
-      g.id === currentGroupId ? { ...g, chats: [...g.chats, newChat] } : g,
-    );
-
-    setGroups(newGroups);
-    setCurrentChatId(newChatId);
-    setMessages(newChat.messages);
-    setTitle(newChat.title);
-    setStartDate(newChat.startDate);
-    setLastOpened(newChat.lastOpened);
-    saveGroups(newGroups);
-    navigation.setParams({ groupId: currentGroupId, chatId: newChatId });
-  };
-
-  const createNewChatIfNeeded = () => {
-    setGroups(prevGroups => {
-      let newGroups = [...prevGroups];
-      let needsSave = false;
-      let newGroupId = currentGroupId;
-      let newChatId = currentChatId;
-
-      if (!newGroupId) {
-        newGroupId = Date.now().toString();
-        const newGroup = {
-          id: newGroupId,
-          name: 'Genel',
-          chats: [],
-        };
-        newGroups = [newGroup];
-        setCurrentGroupId(newGroupId);
-        setCurrentGroupName(newGroup.name);
-        needsSave = true;
-      }
-
-      if (!newChatId) {
-        newChatId = Date.now().toString();
-        const newChat = {
-          id: newChatId,
-          title: 'Sohbet',
-          startDate: new Date(),
-          lastOpened: new Date(),
-          messages: [],
-        };
-        newGroups = newGroups.map(g =>
-          g.id === newGroupId ? { ...g, chats: [...g.chats, newChat] } : g,
-        );
-        setCurrentChatId(newChatId);
-        setTitle(newChat.title);
-        setStartDate(newChat.startDate);
-        setLastOpened(newChat.lastOpened);
-        needsSave = true;
-      }
-
-      if (needsSave) {
-        debouncedSave(newGroups);
-      }
-
-      return newGroups;
+    console.log('📋 Model Inputs:');
+    sessionRef.current.inputNames.forEach(name => {
+      console.log(`  - ${name}`);
     });
-  };
 
-  const updateGroupName = () => {
-    if (!newGroupName.trim()) {
-      Alert.alert('Hata', 'Grup adı boş olamaz.');
-      return;
-    }
-    const newGroups = groups.map(g =>
-      g.id === currentGroupId ? { ...g, name: newGroupName } : g,
-    );
-    setGroups(newGroups);
-    setCurrentGroupName(newGroupName);
-    setNewGroupName('');
-    setGroupNameModalVisible(false);
-    saveGroups(newGroups);
-  };
+    console.log('📋 Model Outputs:');
+    sessionRef.current.outputNames.forEach(name => {
+      console.log(`  - ${name}`);
+    });
+  }, [sessionRef]);
 
-  const tokenize = async text => {
-    if (!vocab) {
-      console.warn('Vocab henüz yüklenmedi');
-      return [50256];
-    }
-    let processedText = text.trim();
-    if (!processedText) return [50256];
-
-    const tokens = [];
-    const words = processedText.split(' ');
-
-    for (let i = 0; i < words.length; i++) {
-      const word = words[i];
-      if (!word) continue;
-      const prefix = i === 0 ? '' : 'Ġ';
-
-      if (vocab[prefix + word] !== undefined) {
-        tokens.push(vocab[prefix + word]);
-      } else if (vocab[prefix + word.toLowerCase()] !== undefined) {
-        tokens.push(vocab[prefix + word.toLowerCase()]);
-      } else {
-        tokens.push(vocab['<unk>'] || 10);
+  // ============================================
+  // TOKENIZE
+  // ============================================
+  const tokenize = useCallback(
+    async text => {
+      if (!vocab) {
+        console.warn('⚠️ Vocab henüz yüklenmedi');
+        return [50256];
       }
+
+      const trimmedText = text.trim();
+      if (!trimmedText) return [50256];
+
+      console.log('🔍 Tokenizing:', trimmedText);
+
+      const tokens = [];
+      const words = trimmedText.toLowerCase().split(/\s+/);
+
+      for (const word of words) {
+        if (!word) continue;
+
+        if (vocab[word] !== undefined) {
+          tokens.push(vocab[word]);
+        } else if (vocab['Ġ' + word] !== undefined) {
+          tokens.push(vocab['Ġ' + word]);
+        } else {
+          for (const char of word) {
+            tokens.push(vocab[char] || vocab['<unk>'] || 10);
+          }
+        }
+      }
+
+      tokens.unshift(vocab['<|endoftext|>'] || 50256);
+      console.log('✅ Tokens:', tokens.slice(0, 10), '...');
+      return tokens;
+    },
+    [vocab],
+  );
+
+  // ============================================
+  // DECODE
+  // ============================================
+  const decodeToken = useCallback(
+    tokenId => {
+      if (!reverseVocab || tokenId === undefined || tokenId === null) {
+        return '';
+      }
+
+      if (tokenId === 50256 || tokenId === 50257) {
+        return '';
+      }
+
+      let token = reverseVocab[tokenId];
+
+      if (!token) {
+        return '';
+      }
+
+      return token
+        .replace(/^Ġ/g, ' ')
+        .replace(/Ċ/g, '\n')
+        .replace(/ĉ/g, '\t')
+        .replace(/<\|endoftext\|>/g, '');
+    },
+    [reverseVocab],
+  );
+
+  // ============================================
+  // EMPTY KV CACHE OLUŞTUR
+  // ============================================
+  const createEmptyKVCache = useCallback((numLayers = 6) => {
+    const kvCache = {};
+
+    for (let i = 0; i < numLayers; i++) {
+      // Boş key tensörü (1, num_heads, 0, head_dim)
+      kvCache[`past_key_values.${i}.key`] = new ort.Tensor(
+        'float32',
+        new Float32Array(0),
+        [1, 12, 0, 64],
+      );
+
+      // Boş value tensörü (1, num_heads, 0, head_dim)
+      kvCache[`past_key_values.${i}.value`] = new ort.Tensor(
+        'float32',
+        new Float32Array(0),
+        [1, 12, 0, 64],
+      );
     }
 
-    tokens.unshift(vocab['<|endoftext|>'] || 50256);
-    return tokens;
-  };
+    return kvCache;
+  }, []);
 
-  const decodeAndAppendToken = tokenId => {
-    if (!reverseVocab) return '';
-    let token = reverseVocab[tokenId] || `[${tokenId}]`;
-    return token
-      .replace(/Ġ/g, ' ')
-      .replace(/Ċ/g, '\n')
-      .replace(/ĉ/g, '\t')
-      .replace(/Ģ/g, '')
-      .replace(/â/g, '')
-      .replace(/Ī/g, '')
-      .replace(/ľ/g, '"')
-      .replace(/Ŀ/g, '"')
-      .replace(/ŉ/g, "'")
-      .replace(/<\|endoftext\|>/g, '');
-  };
-
+  // ============================================
+  // GENERATION (KV CACHE İLE)
+  // ============================================
   const generateStreamingResponse = async prompt => {
     if (!sessionRef.current) {
-      const mockResponse = 'Model henüz yüklenmedi. Bu bir test mesajıdır.';
-      const words = mockResponse.split(' ');
+      const mockResponse = 'Model henüz yüklenmedi. Lütfen bekleyin.';
       setCurrentStreamingMessage('');
       setIsStreaming(true);
       setStreamingComplete(false);
 
+      const words = mockResponse.split(' ');
       for (let i = 0; i < words.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 100));
         setCurrentStreamingMessage(words.slice(0, i + 1).join(' '));
       }
 
       setStreamingComplete(true);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
       setIsStreaming(false);
       return mockResponse;
     }
 
     try {
+      console.log('🚀 Generation başlıyor...');
+      inspectModelInputs();
+
       const tokens = await tokenize(prompt || 'Merhaba');
-      let currentInputIds = tokens.slice(0, 100);
-      const maxNewTokens = 30;
-      const temperature = 0.7;
-      const topK = 50;
-      const topP = 0.9;
-      const repetitionPenalty = 1.3;
+      let inputIds = tokens.slice(0, 100); // Max input length
+
+      const maxNewTokens = 50;
+      const temperature = 0.8;
       const eosTokenId = vocab?.['<|endoftext|>'] || 50256;
+
+      let generatedText = '';
       let generatedTokens = [];
-      let pastKeyValues = null;
+      let pastKVCache = null;
       let pastLength = 0;
-      let recentTokens = [...currentInputIds];
 
       setCurrentStreamingMessage('');
       setIsStreaming(true);
       setStreamingComplete(false);
 
       for (let step = 0; step < maxNewTokens; step++) {
+        // İlk adımda tüm input, sonraki adımlarda sadece son token
         const inputForStep =
-          step === 0
-            ? currentInputIds
-            : [currentInputIds[currentInputIds.length - 1]];
+          step === 0 ? inputIds : [generatedTokens[generatedTokens.length - 1]];
 
+        // Input IDs tensörü
         const inputTensor = new ort.Tensor(
           'int64',
           new BigInt64Array(inputForStep.map(id => BigInt(id))),
           [1, inputForStep.length],
         );
 
+        // Attention mask oluştur
         const totalLength = pastLength + inputForStep.length;
-        const attentionMask = new ort.Tensor(
-          'int64',
-          new BigInt64Array(new Array(totalLength).fill(1).map(v => BigInt(v))),
-          [1, totalLength],
-        );
+        const attentionMaskArray = new BigInt64Array(totalLength);
+        for (let i = 0; i < totalLength; i++) {
+          attentionMaskArray[i] = BigInt(1);
+        }
+        const attentionMask = new ort.Tensor('int64', attentionMaskArray, [
+          1,
+          totalLength,
+        ]);
 
-        const positionIds = new ort.Tensor(
-          'int64',
-          new BigInt64Array(
-            Array.from({ length: inputForStep.length }, (_, i) =>
-              BigInt(pastLength + i),
-            ),
-          ),
-          [1, inputForStep.length],
-        );
+        // Position IDs oluştur
+        const positionIdsArray = new BigInt64Array(inputForStep.length);
+        for (let i = 0; i < inputForStep.length; i++) {
+          positionIdsArray[i] = BigInt(pastLength + i);
+        }
+        const positionIds = new ort.Tensor('int64', positionIdsArray, [
+          1,
+          inputForStep.length,
+        ]);
 
+        // Feeds oluştur
         const feeds = {
           input_ids: inputTensor,
           attention_mask: attentionMask,
           position_ids: positionIds,
         };
 
-        for (let i = 0; i < 6; i++) {
-          feeds[`past_key_values.${i}.key`] = pastKeyValues
-            ? pastKeyValues[`key_${i}`]
-            : new ort.Tensor(
-                'float32',
-                new Float32Array(1 * 12 * 0 * 64),
-                [1, 12, 0, 64],
-              );
-          feeds[`past_key_values.${i}.value`] = pastKeyValues
-            ? pastKeyValues[`value_${i}`]
-            : new ort.Tensor(
-                'float32',
-                new Float32Array(1 * 12 * 0 * 64),
-                [1, 12, 0, 64],
-              );
+        // KV cache ekle
+        if (step === 0) {
+          // İlk adım: boş KV cache
+          const emptyKV = createEmptyKVCache(6);
+          Object.assign(feeds, emptyKV);
+        } else {
+          // Sonraki adımlar: önceki KV cache'i kullan
+          if (pastKVCache) {
+            for (let i = 0; i < 6; i++) {
+              feeds[`past_key_values.${i}.key`] =
+                pastKVCache[`present.${i}.key`];
+              feeds[`past_key_values.${i}.value`] =
+                pastKVCache[`present.${i}.value`];
+            }
+          } else {
+            // Fallback: boş KV cache
+            const emptyKV = createEmptyKVCache(6);
+            Object.assign(feeds, emptyKV);
+          }
         }
 
+        console.log(
+          `Step ${step}: Input shape [1, ${inputForStep.length}], Past length ${pastLength}`,
+        );
+
+        // Model inference
         const results = await sessionRef.current.run(feeds);
-        const logits = results.logits;
 
-        if (!logits || !logits.data) {
-          throw new Error('Model did not return valid logits');
+        if (!results.logits || !results.logits.data) {
+          throw new Error('Model geçersiz logits döndü');
         }
 
+        // KV cache'i sakla
+        pastKVCache = results;
+        pastLength += inputForStep.length;
+
+        // Logits'ten next token seç
+        const logits = results.logits;
         const vocabSize = logits.dims[2];
         const lastTokenLogits = new Float32Array(vocabSize);
+        const lastTokenStart = logits.data.length - vocabSize;
+
         for (let i = 0; i < vocabSize; i++) {
-          lastTokenLogits[i] = logits.data[logits.data.length - vocabSize + i];
+          lastTokenLogits[i] = logits.data[lastTokenStart + i];
         }
 
-        const recentTokenCount = {};
-        const recentWindow = recentTokens.slice(-20);
-        for (const token of recentWindow) {
-          recentTokenCount[token] = (recentTokenCount[token] || 0) + 1;
-        }
-
-        for (const [tokenId, count] of Object.entries(recentTokenCount)) {
-          if (count > 1) {
-            const penalty = Math.pow(repetitionPenalty, count);
-            const id = parseInt(tokenId);
-            if (lastTokenLogits[id] > 0) {
-              lastTokenLogits[id] /= penalty;
-            } else {
-              lastTokenLogits[id] *= penalty;
-            }
-          }
-        }
-
-        const clippedLogits = lastTokenLogits.map(l =>
-          Math.max(Math.min(l, 100), -100),
-        );
-        const scaledLogits = clippedLogits.map(
-          l => l / Math.max(temperature, 1e-7),
-        );
+        // Temperature + Softmax
+        const scaledLogits = lastTokenLogits.map(l => l / temperature);
         const maxLogit = Math.max(...scaledLogits);
-        const normalizedLogits = scaledLogits.map(l => l - maxLogit);
-        const expLogits = normalizedLogits.map(l => Math.exp(Math.min(l, 20)));
+        const expLogits = scaledLogits.map(l =>
+          Math.exp(Math.min(l - maxLogit, 20)),
+        );
         const sumExp = expLogits.reduce((a, b) => a + b, 0);
+        const probs = expLogits.map(e => e / sumExp);
 
-        let nextTokenId;
-        if (!sumExp || isNaN(sumExp) || sumExp === 0) {
-          nextTokenId = scaledLogits.indexOf(Math.max(...scaledLogits));
-        } else {
-          const probs = expLogits.map(e => e / sumExp);
-          const probsWithIndex = probs
-            .map((prob, index) => ({ prob, index }))
-            .filter(item => !isNaN(item.prob) && item.prob > 1e-8);
-
-          if (probsWithIndex.length === 0) {
-            nextTokenId = scaledLogits.indexOf(Math.max(...scaledLogits));
-          } else {
-            probsWithIndex.sort((a, b) => b.prob - a.prob);
-            let filteredProbs = probsWithIndex.slice(0, topK);
-
-            let cumSum = 0;
-            let cutoffIndex = filteredProbs.length;
-            for (let i = 0; i < filteredProbs.length; i++) {
-              cumSum += filteredProbs[i].prob;
-              if (cumSum > topP) {
-                cutoffIndex = i + 1;
-                break;
-              }
-            }
-
-            filteredProbs = filteredProbs.slice(0, cutoffIndex);
-            const filteredSum = filteredProbs.reduce(
-              (sum, item) => sum + item.prob,
-              0,
-            );
-            filteredProbs = filteredProbs.map(item => ({
-              ...item,
-              prob: filteredSum > 0 ? item.prob / filteredSum : item.prob,
-            }));
-
-            if (filteredProbs.length === 0) {
-              nextTokenId = scaledLogits.indexOf(Math.max(...scaledLogits));
-            } else {
-              const random = Math.random();
-              let cumProb = 0;
-              nextTokenId = filteredProbs[0].index;
-              for (const item of filteredProbs) {
-                cumProb += item.prob;
-                if (random < cumProb) {
-                  nextTokenId = item.index;
-                  break;
-                }
-              }
-            }
+        // Greedy sampling (en yüksek prob)
+        let nextTokenId = 0;
+        let maxProb = 0;
+        for (let i = 0; i < probs.length; i++) {
+          if (probs[i] > maxProb) {
+            maxProb = probs[i];
+            nextTokenId = i;
           }
         }
 
-        generatedTokens.push(nextTokenId);
-        recentTokens.push(nextTokenId);
-        if (recentTokens.length > 50) recentTokens = recentTokens.slice(-40);
+        console.log(`  → Token ${nextTokenId} (prob: ${maxProb.toFixed(4)})`);
 
-        const fullText = generatedTokens
-          .map(id => decodeAndAppendToken(id))
-          .join('')
-          .trim()
-          .replace(/\s+/g, ' ');
-        setCurrentStreamingMessage(fullText);
-
-        if (step === 0) {
-          pastLength = currentInputIds.length;
-          currentInputIds.push(nextTokenId);
-        } else {
-          pastLength += 1;
-          currentInputIds = [nextTokenId];
+        // Decode ve ekle
+        const decodedToken = decodeToken(nextTokenId);
+        if (decodedToken) {
+          generatedText += decodedToken;
+          generatedTokens.push(nextTokenId);
+          setCurrentStreamingMessage(generatedText.trim());
         }
 
-        pastKeyValues = {};
-        for (let i = 0; i < 6; i++) {
-          pastKeyValues[`key_${i}`] = results[`present.${i}.key`];
-          pastKeyValues[`value_${i}`] = results[`present.${i}.value`];
-        }
-
-        if (
-          generatedTokens.length >= 5 &&
-          generatedTokens
-            .slice(-5)
-            .every(
-              token => token === generatedTokens[generatedTokens.length - 1],
-            )
-        ) {
+        // Durma koşulları
+        if (nextTokenId === eosTokenId) {
+          console.log('⏹️ EOS token');
           break;
         }
 
-        if (
-          nextTokenId === eosTokenId ||
-          generatedTokens.length >= maxNewTokens
-        ) {
-          break;
+        if (generatedTokens.length >= 3) {
+          const lastThree = generatedTokens.slice(-3);
+          if (lastThree[0] === lastThree[1] && lastThree[1] === lastThree[2]) {
+            console.log('⏹️ Token tekrarı');
+            break;
+          }
         }
 
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
       setStreamingComplete(true);
-      let finalResponse = generatedTokens
-        .map(id => decodeAndAppendToken(id))
-        .join('')
-        .trim()
-        .replace(/\s+/g, ' ');
+      const finalText = generatedText.trim() || 'Model yanıt üretemedi.';
+      console.log('✅ Final:', finalText);
 
-      if (!finalResponse) finalResponse = 'Model kısa yanıt üretti.';
-
-      setCurrentStreamingMessage(finalResponse);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      setCurrentStreamingMessage(finalText);
+      await new Promise(resolve => setTimeout(resolve, 300));
       setIsStreaming(false);
-      return finalResponse;
+
+      return finalText;
     } catch (error) {
-      console.error('Generation error:', error);
+      console.error('❌ Generation hatası:', error);
+      console.error('Stack:', error.stack);
       setStreamingComplete(true);
       setIsStreaming(false);
-      return 'Üzgünüm, yanıt oluştururken bir hata oluştu: ' + error.message;
+      return `Hata: ${error.message}`;
     }
   };
 
+  // ============================================
+  // SEND MESSAGE
+  // ============================================
   const sendMessage = async () => {
     if (!inputText.trim() || isStreaming) return;
 
     if (!modelLoaded) {
-      Alert.alert('Uyarı', 'Model henüz yüklenmedi. Lütfen bekleyin.');
+      Alert.alert('Uyarı', 'Model henüz yüklenmedi.');
       return;
     }
 
-    createNewChatIfNeeded();
-
-    if (!currentGroupId || !currentChatId) {
-      Alert.alert('Hata', 'Grup veya sohbet ID eksik.');
+    if (!vocab || !reverseVocab) {
+      Alert.alert('Uyarı', 'Vocab henüz yüklenmedi.');
       return;
     }
 
@@ -747,166 +374,85 @@ export const useChatLogic = ({ route, navigation }) => {
       timestamp: new Date(),
     };
 
-    setMessages(prevMessages => {
-      const newMessages = [...prevMessages, userMessage];
+    setMessages(prev => [...prev, userMessage]);
+    const userInput = inputText;
+    setInputText('');
 
-      let newTitle = title;
-      if (prevMessages.length === 0) {
-        const trimmedInput = inputText.replace(/\s+/g, ' ').trim();
-        newTitle =
-          trimmedInput.length > 0
-            ? trimmedInput.slice(0, 50) +
-              (trimmedInput.length > 50 ? '...' : '')
-            : 'Sohbet';
-        setTitle(newTitle);
-      }
+    streamingMessageId.current = (Date.now() + 1).toString();
 
-      setGroups(prevGroups => {
-        let updatedGroups = prevGroups.map(g =>
-          g.id === currentGroupId
-            ? {
-                ...g,
-                chats: g.chats.some(c => c.id === currentChatId)
-                  ? g.chats.map(c =>
-                      c.id === currentChatId
-                        ? {
-                            ...c,
-                            title: newTitle,
-                            messages: newMessages,
-                            lastOpened: new Date(),
-                          }
-                        : c,
-                    )
-                  : [
-                      ...g.chats,
-                      {
-                        id: currentChatId,
-                        title: newTitle,
-                        startDate: new Date(),
-                        lastOpened: new Date(),
-                        messages: newMessages,
-                      },
-                    ],
-              }
-            : g,
-        );
+    try {
+      const response = await generateStreamingResponse(userInput);
 
-        debouncedSave(updatedGroups);
-        return updatedGroups;
-      });
+      const aiMessage = {
+        id: streamingMessageId.current,
+        text: response,
+        sender: 'ai',
+        timestamp: new Date(),
+      };
 
-      setInputText('');
-      streamingMessageId.current = (Date.now() + 1).toString();
-
-      generateStreamingResponse(inputText)
-        .then(response => {
-          const finalMessageText = currentStreamingMessage.trim() || response;
-          const aiMessage = {
-            id: streamingMessageId.current,
-            text: finalMessageText,
-            sender: 'ai',
-            timestamp: new Date(),
-          };
-
-          setMessages(prevMessages => {
-            const finalMessages = [...prevMessages, aiMessage];
-
-            setGroups(prevGroups => {
-              const finalGroups = prevGroups.map(g =>
-                g.id === currentGroupId
-                  ? {
-                      ...g,
-                      chats: g.chats.map(c =>
-                        c.id === currentChatId
-                          ? {
-                              ...c,
-                              messages: finalMessages,
-                              lastOpened: new Date(),
-                            }
-                          : c,
-                      ),
-                    }
-                  : g,
-              );
-
-              saveGroups(finalGroups);
-              debugAsyncStorage();
-              return finalGroups;
-            });
-
-            setCurrentStreamingMessage('');
-            return finalMessages;
-          });
-        })
-        .catch(error => {
-          console.error('❌ sendMessage: Error generating response:', error);
-          Alert.alert('Hata', 'Yanıt oluşturulurken bir hata oluştu.');
-          setIsStreaming(false);
-          setCurrentStreamingMessage('');
-        });
-
-      return newMessages;
-    });
+      setMessages(prev => [...prev, aiMessage]);
+      setCurrentStreamingMessage('');
+    } catch (error) {
+      console.error('❌ Mesaj hatası:', error);
+      Alert.alert('Hata', 'Yanıt oluşturulurken hata oluştu.');
+      setIsStreaming(false);
+      setCurrentStreamingMessage('');
+    }
   };
 
-  const onTimerEnd = () => {
-    setSeconds(420);
-    console.log('Reklam gösteriliyor...');
-    showRewardedAd();
+  // ============================================
+  // UTILITY FUNCTIONS
+  // ============================================
+  const testAsyncStorage = async () => {
+    try {
+      await AsyncStorage.setItem('test', 'ok');
+      console.log('✅ AsyncStorage çalışıyor');
+    } catch (error) {
+      console.error('❌ AsyncStorage hatası:', error);
+    }
+  };
+
+  const saveGroups = useCallback(async groupsToSave => {
+    try {
+      await AsyncStorage.setItem('groups', JSON.stringify(groupsToSave));
+    } catch (error) {
+      console.error('❌ Grup kaydetme hatası:', error);
+    }
+  }, []);
+
+  const loadGroups = async () => {
+    console.log('Gruplar yükleniyor...');
+  };
+
+  const startNewGroup = () => {
+    console.log('Yeni grup');
+  };
+
+  const startNewChat = () => {
+    console.log('Yeni sohbet');
+  };
+
+  const updateGroupName = () => {
+    console.log('Grup adı güncellendi');
   };
 
   const formatTime = () => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min}:${sec < 10 ? '0' : ''}${sec}`;
   };
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setSeconds(prev => (prev <= 1 ? (onTimerEnd(), 0) : prev - 1));
-    }, 1000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-  useEffect(() => {
     testAsyncStorage();
-    checkStorageSize();
     loadGroups();
-
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
   }, []);
 
   useEffect(() => {
-    console.log('Route params:', route.params);
-    if (route.params?.groupId && route.params?.chatId) {
-      console.log('🔄 Route params changed, reloading chat...');
-      loadGroups();
-    } else {
-      loadGroups();
-    }
-  }, [route.params?.groupId, route.params?.chatId]);
-
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      console.log('📱 Chat screen focused, reloading...');
-      if (route.params?.groupId && route.params?.chatId) {
-        loadGroups();
-      }
-    });
-    return unsubscribe;
-  }, [navigation, route.params?.groupId, route.params?.chatId]);
-
-  useEffect(() => {
-    if (currentGroupId && currentChatId) {
-      console.log('📌 useEffect: Updating navigation params', {
-        groupId: currentGroupId,
-        chatId: currentChatId,
-      });
-      navigation.setParams({ groupId: currentGroupId, chatId: currentChatId });
-    }
-  }, [currentGroupId, currentChatId, navigation]);
+    const interval = setInterval(() => {
+      setSeconds(prev => (prev <= 1 ? (showRewardedAd(), 420) : prev - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   return {
     messages,
@@ -933,12 +479,9 @@ export const useChatLogic = ({ route, navigation }) => {
     seconds,
     sessionRef,
     scrollViewRef,
-    streamingMessageId,
-    saveTimeoutRef,
     loadModel,
     startNewGroup,
     startNewChat,
-    createNewChatIfNeeded,
     updateGroupName,
     sendMessage,
     formatTime,

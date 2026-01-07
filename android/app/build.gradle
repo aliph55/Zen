@@ -82,8 +82,8 @@ android {
         applicationId "com.zenai"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 17
-        versionName "2.85"
+        versionCode 19
+        versionName "2.87"
     }
     signingConfigs {
         debug {
