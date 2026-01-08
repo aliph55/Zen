@@ -15,7 +15,9 @@
         android:usesCleartextTraffic="${usesCleartextTraffic}"
         android:largeHeap="true"
         android:supportsRtl="true">
-        
+         <property
+        android:name="android.app.use_maximum_page_size"
+        android:value="true" />
         <!-- AdMob App ID -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
