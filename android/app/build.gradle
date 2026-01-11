@@ -20,12 +20,14 @@ android {
         applicationId "com.zenai"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 19
-        versionName "2.87"
+        versionCode 22
+        versionName "2.90"
         
         // 16 KB sayfa boyutu desteği - BURAYA TAŞINDI
         manifestPlaceholders = [
             'android.app.use_maximum_page_size': 'true'
+        ,        appAuthRedirectScheme: 'com.zenai'
+
         ]
     }
     
