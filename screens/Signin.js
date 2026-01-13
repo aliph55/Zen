@@ -7,9 +7,12 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { useDispatch } from 'react-redux';
+import { setUserInfo, resetUserInfo } from '../redux/userInfo';
+
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 // Modern modular API import
-import auth, {
+import {
   getAuth,
   signInWithCredential,
   GoogleAuthProvider,
@@ -18,6 +21,7 @@ import auth, {
 const Signin = () => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     // Google Sign-In yapılandırması
@@ -29,9 +33,30 @@ const Signin = () => {
 
     // Mevcut kullanıcıyı kontrol et - Modern API
     const authInstance = getAuth();
-    const subscriber = authInstance.onAuthStateChanged(setUser);
-    return subscriber;
-  }, []);
+    const unsubscribe = authInstance.onAuthStateChanged(firebaseUser => {
+      setUser(firebaseUser);
+
+      // Firebase kullanıcısı varsa Redux'a kaydet
+      if (firebaseUser) {
+        dispatch(
+          setUserInfo({
+            givenName: firebaseUser.displayName?.split(' ')[0] || '',
+            familyName:
+              firebaseUser.displayName?.split(' ').slice(1).join(' ') || '',
+            email: firebaseUser.email || '',
+            photo: firebaseUser.photoURL || '',
+            name: firebaseUser.displayName || '',
+            id: firebaseUser.uid || '',
+          }),
+        );
+      } else {
+        // Kullanıcı çıkış yaptıysa Redux'ı temizle
+        dispatch(resetUserInfo());
+      }
+    });
+
+    return () => unsubscribe();
+  }, [dispatch]);
 
   const onGoogleButtonPress = async () => {
     try {
@@ -60,8 +85,10 @@ const Signin = () => {
         googleCredential,
       );
 
-      console.log('Giriş başarılı:', userCredential.user);
+      console.log('Giriş başarılı:', userCredential?.user);
       Alert.alert('Başarılı', 'Google ile giriş yapıldı!');
+
+      // Not: Redux güncelleme onAuthStateChanged callback'inde otomatik yapılacak
     } catch (error) {
       console.error('Google Sign-In hatası:', error);
 
@@ -72,6 +99,10 @@ const Signin = () => {
         errorMessage = 'Geçersiz kimlik bilgileri';
       } else if (error.code === 'auth/network-request-failed') {
         errorMessage = 'İnternet bağlantısı hatası';
+      } else if (
+        error.code === 'auth/account-exists-with-different-credential'
+      ) {
+        errorMessage = 'Bu hesap farklı bir giriş yöntemi ile kayıtlı';
       } else if (error.message) {
         errorMessage = error.message;
       }
@@ -84,12 +115,17 @@ const Signin = () => {
 
   const signOut = async () => {
     try {
+      setLoading(true);
       await GoogleSignin.signOut();
       const authInstance = getAuth();
       await authInstance.signOut();
+      // Redux temizleme onAuthStateChanged'de otomatik yapılacak
       Alert.alert('Başarılı', 'Çıkış yapıldı');
     } catch (error) {
       console.error('Sign-Out hatası:', error);
+      Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -100,13 +136,23 @@ const Signin = () => {
           <Text style={styles.welcomeText}>Hoş geldiniz!</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
           <Text style={styles.userName}>{user.displayName}</Text>
+          {user.photoURL && (
+            <Text style={styles.photoUrl} numberOfLines={1}>
+              Profil: {user.photoURL}
+            </Text>
+          )}
         </View>
 
         <TouchableOpacity
           style={[styles.button, styles.signOutButton]}
           onPress={signOut}
+          disabled={loading}
         >
-          <Text style={styles.buttonText}>Çıkış Yap</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Çıkış Yap</Text>
+          )}
         </TouchableOpacity>
       </View>
     );
@@ -211,6 +257,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#333',
     fontWeight: '500',
+    marginBottom: 5,
+  },
+  photoUrl: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 5,
   },
   button: {
     paddingVertical: 15,
