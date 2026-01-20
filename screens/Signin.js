@@ -7,10 +7,10 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  StatusBar,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { setUserInfo, resetUserInfo } from '../redux/userInfo';
-
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import {
   getAuth,
@@ -18,14 +18,14 @@ import {
   GoogleAuthProvider,
 } from '@react-native-firebase/auth';
 import { useNavigation } from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const Signin = () => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
   const dispatch = useDispatch();
-
   const navigate = useNavigation();
 
   useEffect(() => {
@@ -63,7 +63,6 @@ const Signin = () => {
   const onGoogleButtonPress = async () => {
     try {
       setLoading(true);
-
       await GoogleSignin.hasPlayServices({
         showPlayServicesUpdateDialog: true,
       });
@@ -87,7 +86,6 @@ const Signin = () => {
       Alert.alert('Başarılı', 'Google ile giriş yapıldı!');
     } catch (error) {
       console.error('Google Sign-In hatası:', error);
-
       let errorMessage = 'Giriş yapılırken bir hata oluştu';
 
       if (error.code === 'auth/invalid-credential') {
@@ -125,23 +123,57 @@ const Signin = () => {
 
   if (user) {
     return (
-      <View style={styles.container}>
+      <LinearGradient
+        colors={['#0F172A', '#1E293B', '#0F172A']}
+        style={styles.container}
+      >
+        <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+
+        {/* Animated Background Blobs */}
+        <View style={styles.blob1} />
+        <View style={styles.blob2} />
+        <View style={styles.blob3} />
+
         <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
+          {/* Avatar */}
+          <View style={styles.avatarWrapper}>
+            <LinearGradient
+              colors={['#8B5CF6', '#EC4899', '#EF4444']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.avatarGradient}
+            >
               <Text style={styles.avatarText}>
                 {user.displayName?.charAt(0).toUpperCase() || 'U'}
               </Text>
-            </View>
+            </LinearGradient>
             <View style={styles.onlineBadge} />
           </View>
 
-          <Text style={styles.welcomeText}>Welcome back</Text>
+          {/* User Info */}
+          <Text style={styles.welcomeText}>Welcome back,</Text>
           <Text style={styles.userName}>{user.displayName}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
 
-          <View style={styles.divider} />
+          {/* Stats */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>24</Text>
+              <Text style={styles.statLabel}>Chats</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>156</Text>
+              <Text style={styles.statLabel}>Messages</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>12</Text>
+              <Text style={styles.statLabel}>Days</Text>
+            </View>
+          </View>
 
+          {/* Logout Button */}
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={signOut}
@@ -152,314 +184,416 @@ const Signin = () => {
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
-                <Text style={styles.logoutIcon}>🚪</Text>
                 <Text style={styles.logoutText}>Sign Out</Text>
+                <Text style={styles.logoutIcon}>→</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
-
-        <View style={styles.decorativeCircle1} />
-        <View style={styles.decorativeCircle2} />
-      </View>
+      </LinearGradient>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.decorativeCircle1} />
-      <View style={styles.decorativeCircle2} />
+    <LinearGradient
+      colors={['#0F172A', '#1E293B', '#0F172A']}
+      style={styles.container}
+    >
+      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
-      <View style={styles.loginCard}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logo}>
+      {/* Animated Background Blobs */}
+      <View style={styles.blob1} />
+      <View style={styles.blob2} />
+      <View style={styles.blob3} />
+
+      <View style={styles.content}>
+        {/* Logo & Title */}
+        <View style={styles.header}>
+          <LinearGradient
+            colors={['#8B5CF6', '#EC4899']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.logoGradient}
+          >
             <Text style={styles.logoText}>Z</Text>
+          </LinearGradient>
+
+          <Text style={styles.title}>ZenAI</Text>
+          <Text style={styles.subtitle}>Your intelligent AI companion</Text>
+        </View>
+
+        {/* Feature Cards */}
+        <View style={styles.featuresGrid}>
+          <View style={styles.featureCard}>
+            <LinearGradient
+              colors={['rgba(139, 92, 246, 0.15)', 'rgba(139, 92, 246, 0.05)']}
+              style={styles.featureGradient}
+            >
+              <Text style={styles.featureEmoji}>✨</Text>
+              <Text style={styles.featureTitle}>Smart AI</Text>
+              <Text style={styles.featureDesc}>Advanced intelligence</Text>
+            </LinearGradient>
+          </View>
+
+          <View style={styles.featureCard}>
+            <LinearGradient
+              colors={['rgba(236, 72, 153, 0.15)', 'rgba(236, 72, 153, 0.05)']}
+              style={styles.featureGradient}
+            >
+              <Text style={styles.featureEmoji}>🔒</Text>
+              <Text style={styles.featureTitle}>Secure</Text>
+              <Text style={styles.featureDesc}>Privacy first</Text>
+            </LinearGradient>
+          </View>
+
+          <View style={styles.featureCard}>
+            <LinearGradient
+              colors={['rgba(239, 68, 68, 0.15)', 'rgba(239, 68, 68, 0.05)']}
+              style={styles.featureGradient}
+            >
+              <Text style={styles.featureEmoji}>⚡</Text>
+              <Text style={styles.featureTitle}>Fast</Text>
+              <Text style={styles.featureDesc}>Instant responses</Text>
+            </LinearGradient>
           </View>
         </View>
 
-        <Text style={styles.title}>ZenAI</Text>
-        <Text style={styles.subtitle}>
-          Welcome to your AI-powered assistant
-        </Text>
-
-        <View style={styles.featuresContainer}>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureIcon}>✨</Text>
-            <Text style={styles.featureText}>Smart</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureIcon}>🔒</Text>
-            <Text style={styles.featureText}>Secure</Text>
-          </View>
-          <View style={styles.featureItem}>
-            <Text style={styles.featureIcon}>⚡</Text>
-            <Text style={styles.featureText}>Fast</Text>
-          </View>
-        </View>
-
+        {/* Google Sign In Button */}
         <TouchableOpacity
           style={styles.googleButton}
           onPress={onGoogleButtonPress}
           disabled={loading}
           activeOpacity={0.9}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <>
-              <View style={styles.googleIconContainer}>
-                <Text style={styles.googleIcon}>G</Text>
-              </View>
-              <Text style={styles.googleButtonText}>Continue with Google</Text>
-            </>
-          )}
+          <LinearGradient
+            colors={['#ffffff', '#f8f9fa']}
+            style={styles.googleButtonGradient}
+          >
+            {loading ? (
+              <ActivityIndicator color="#1E293B" size="small" />
+            ) : (
+              <>
+                <View style={styles.googleIconWrapper}>
+                  <Text style={styles.googleG}>G</Text>
+                </View>
+                <Text style={styles.googleButtonText}>
+                  Continue with Google
+                </Text>
+              </>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
+        {/* Terms */}
         <Text style={styles.termsText}>
-          By continuing, you agree to our{' '}
-          <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
+          By continuing, you agree to our{'\n'}
+          <Text style={styles.termsLink}>Terms</Text> and{' '}
           <Text style={styles.termsLink}>Privacy Policy</Text>
         </Text>
       </View>
-    </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
   },
-  decorativeCircle1: {
+
+  // Animated Blobs
+  blob1: {
     position: 'absolute',
     width: 300,
     height: 300,
     borderRadius: 150,
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    top: -100,
+    backgroundColor: 'rgba(139, 92, 246, 0.08)',
+    top: -150,
     right: -100,
+    opacity: 0.6,
   },
-  decorativeCircle2: {
+  blob2: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    backgroundColor: 'rgba(236, 72, 153, 0.08)',
+    bottom: -100,
+    left: -80,
+    opacity: 0.6,
+  },
+  blob3: {
     position: 'absolute',
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: 'rgba(168, 85, 247, 0.1)',
-    bottom: -50,
-    left: -50,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    top: height * 0.4,
+    right: -50,
+    opacity: 0.6,
   },
-  loginCard: {
-    width: width * 0.9,
-    maxWidth: 400,
-    backgroundColor: '#1E293B',
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.4,
-    shadowRadius: 25,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  logoContainer: {
-    marginBottom: 24,
-  },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+
+  content: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
+    paddingHorizontal: 24,
+  },
+
+  // Header
+  header: {
+    alignItems: 'center',
+    marginBottom: 48,
+  },
+  logoGradient: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 8,
   },
   logoText: {
-    fontSize: 40,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  title: {
     fontSize: 36,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#fff',
-    marginBottom: 8,
     letterSpacing: -1,
   },
+  title: {
+    fontSize: 42,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 8,
+    letterSpacing: -2,
+  },
   subtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: '#94A3B8',
-    marginBottom: 32,
-    textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 16,
+    fontWeight: '500',
+    letterSpacing: 0.5,
   },
-  featuresContainer: {
+
+  // Features Grid
+  featuresGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    gap: 12,
+    marginBottom: 40,
     width: '100%',
-    marginBottom: 32,
-    paddingHorizontal: 8,
   },
-  featureItem: {
-    alignItems: 'center',
+  featureCard: {
     flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
-  featureIcon: {
+  featureGradient: {
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 16,
+  },
+  featureEmoji: {
     fontSize: 28,
     marginBottom: 8,
   },
-  featureText: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '600',
+  featureTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
   },
+  featureDesc: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+
+  // Google Button
   googleButton: {
+    width: '100%',
+    marginBottom: 20,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  googleButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 24,
-    borderRadius: 16,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-    marginBottom: 20,
   },
-  googleIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  googleIconWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: '#4285F4',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  googleIcon: {
+  googleG: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '900',
   },
   googleButtonText: {
     color: '#1E293B',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
+    letterSpacing: 0.3,
   },
+
+  // Terms
   termsText: {
     fontSize: 11,
-    color: '#64748B',
+    color: '#475569',
     textAlign: 'center',
-    lineHeight: 16,
-    paddingHorizontal: 8,
+    lineHeight: 18,
   },
   termsLink: {
-    color: '#818CF8',
-    fontWeight: '600',
+    color: '#8B5CF6',
+    fontWeight: '700',
   },
+
+  // Profile Card
   profileCard: {
     width: width * 0.9,
     maxWidth: 400,
-    backgroundColor: '#1E293B',
-    borderRadius: 24,
+    backgroundColor: 'rgba(30, 41, 59, 0.7)',
+    backdropFilter: 'blur(20px)',
+    borderRadius: 32,
     padding: 40,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.4,
-    shadowRadius: 25,
-    elevation: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.4,
+    shadowRadius: 32,
+    elevation: 12,
   },
-  avatarContainer: {
+  avatarWrapper: {
     position: 'relative',
     marginBottom: 24,
   },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  avatarGradient: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,
-    borderColor: '#334155',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
   },
   avatarText: {
-    fontSize: 40,
-    fontWeight: 'bold',
+    fontSize: 44,
+    fontWeight: '900',
     color: '#fff',
   },
   onlineBadge: {
     position: 'absolute',
     bottom: 4,
     right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#10B981',
-    borderWidth: 3,
-    borderColor: '#1E293B',
+    borderWidth: 4,
+    borderColor: 'rgba(30, 41, 59, 0.9)',
   },
   welcomeText: {
-    fontSize: 16,
-    color: '#94A3B8',
+    fontSize: 15,
+    color: '#64748B',
     marginBottom: 8,
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   userName: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 32,
+    fontWeight: '900',
     color: '#fff',
     marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: -1,
   },
   userEmail: {
     fontSize: 15,
     color: '#64748B',
-    marginBottom: 24,
+    marginBottom: 32,
+    fontWeight: '500',
   },
-  divider: {
+
+  // Stats
+  statsContainer: {
+    flexDirection: 'row',
     width: '100%',
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginBottom: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 4,
+    letterSpacing: -1,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    marginHorizontal: 12,
+  },
+
+  // Logout Button
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EF4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
     paddingVertical: 16,
     paddingHorizontal: 32,
     borderRadius: 16,
     width: '100%',
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  logoutIcon: {
-    fontSize: 20,
-    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: '#EF4444',
   },
   logoutText: {
-    color: '#fff',
+    color: '#EF4444',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
+    marginRight: 8,
+    letterSpacing: 0.5,
+  },
+  logoutIcon: {
+    color: '#EF4444',
+    fontSize: 18,
+    fontWeight: '900',
   },
 });
 

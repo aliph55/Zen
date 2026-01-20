@@ -6,25 +6,46 @@ import {
   StyleSheet,
   Alert,
   TouchableOpacity,
-  Platform,
+  Dimensions,
+  Animated,
 } from 'react-native';
 import RNFS from 'react-native-fs';
 import { useModel } from '../contexts/ModelContext';
 
-// AWS S3 URL - CORS ve public access kontrol edilmeli
+const { width, height } = Dimensions.get('window');
+
 const MODEL_URL =
   'https://s3.eu-north-1.amazonaws.com/model.onnxugvjhb/model.onnx';
 const MODEL_LOCAL_PATH = `${RNFS.DocumentDirectoryPath}/model.onnx`;
-const EXPECTED_MODEL_SIZE = 482272438; // 482.27 MB (bytes)
-const MIN_VALID_SIZE = 480000000; // Minimum 480 MB
+const EXPECTED_MODEL_SIZE = 482272438;
+const MIN_VALID_SIZE = 480000000;
 
 const Download = ({ onDownloadComplete }) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState('Checking model...');
+  const [pulseAnim] = useState(new Animated.Value(1));
 
   const { loadModel, loadVocab } = useModel();
+
+  useEffect(() => {
+    // Pulse animation for the icon
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, []);
 
   const downloadModel = async () => {
     try {
@@ -32,7 +53,6 @@ const Download = ({ onDownloadComplete }) => {
       setError(null);
       setStatusMessage('Checking model...');
 
-      // Check if model already exists
       const exists = await RNFS.exists(MODEL_LOCAL_PATH);
       if (exists) {
         console.log('✅ Model file found, validating...');
@@ -49,6 +69,9 @@ const Download = ({ onDownloadComplete }) => {
 
           if (typeof onDownloadComplete === 'function') {
             onDownloadComplete(MODEL_LOCAL_PATH);
+          } else {
+            console.error('❌ onDownloadComplete function is not defined.');
+            setError('Application configuration error.');
           }
           setIsDownloading(false);
           return;
@@ -63,69 +86,24 @@ const Download = ({ onDownloadComplete }) => {
         }
       }
 
-      // Test URL connectivity first
-      console.log('🔍 Testing URL connectivity...');
-      try {
-        const testResponse = await fetch(MODEL_URL, { method: 'HEAD' });
-        console.log('📡 URL test status:', testResponse.status);
-
-        if (!testResponse.ok) {
-          throw new Error(`URL unreachable. Status: ${testResponse.status}`);
-        }
-
-        const contentLength = testResponse.headers.get('content-length');
-        console.log('📊 Server reported size:', contentLength, 'bytes');
-
-        if (contentLength && parseInt(contentLength) < MIN_VALID_SIZE) {
-          throw new Error(
-            'Server is reporting incorrect file size. Please check the S3 URL.',
-          );
-        }
-      } catch (fetchError) {
-        console.error('❌ URL test failed:', fetchError);
-        throw new Error(
-          `Cannot reach model URL. Please check:\n` +
-            `1. S3 bucket is public\n` +
-            `2. CORS is configured\n` +
-            `3. File exists at the URL\n` +
-            `Error: ${fetchError.message}`,
-        );
-      }
-
       console.log('📥 Downloading model...');
       console.log('🔗 URL:', MODEL_URL);
-      setStatusMessage('Downloading model... (This may take a few minutes)');
+      setStatusMessage('Downloading model...');
 
       const downloadOptions = {
         fromUrl: MODEL_URL,
         toFile: MODEL_LOCAL_PATH,
         background: false,
         progressDivider: 1,
-        connectionTimeout: 60000, // 60 saniye
-        readTimeout: 60000, // 60 saniye
-        headers: {
-          Accept: '*/*',
-          'User-Agent': 'ReactNative/ZenAI',
-        },
+        connectionTimeout: 30000,
+        readTimeout: 30000,
         begin: res => {
           console.log('🚀 Download started');
           console.log('📊 Total size:', res.contentLength, 'bytes');
           console.log('📊 Status code:', res.statusCode);
-          console.log('📊 Headers:', JSON.stringify(res.headers));
-
-          if (res.statusCode !== 200) {
-            throw new Error(`Server error: ${res.statusCode}`);
-          }
 
           if (res.contentLength && res.contentLength < MIN_VALID_SIZE) {
             console.warn('⚠️ Server response size is smaller than expected!');
-            throw new Error(
-              `Server is sending a file that's too small. ` +
-                `Expected: ${(EXPECTED_MODEL_SIZE / 1024 / 1024).toFixed(
-                  1,
-                )} MB, ` +
-                `Got: ${(res.contentLength / 1024 / 1024).toFixed(1)} MB`,
-            );
           }
         },
         progress: res => {
@@ -136,27 +114,19 @@ const Download = ({ onDownloadComplete }) => {
 
           setDownloadProgress(progressPercent);
 
-          if (Math.floor(progressPercent) % 10 === 0) {
+          if (Math.floor(progressPercent) % 5 === 0) {
             console.log(
               `📥 Downloaded: ${progressPercent.toFixed(1)}% (${(
                 res.bytesWritten /
                 1024 /
                 1024
-              ).toFixed(1)} MB / ${(
-                (res.contentLength || EXPECTED_MODEL_SIZE) /
-                1024 /
-                1024
-              ).toFixed(1)} MB)`,
+              ).toFixed(1)} MB / ${(res.contentLength / 1024 / 1024).toFixed(
+                1,
+              )} MB)`,
             );
           }
 
-          setStatusMessage(
-            `Downloading: ${progressPercent.toFixed(0)}% (${(
-              res.bytesWritten /
-              1024 /
-              1024
-            ).toFixed(1)} MB)`,
-          );
+          setStatusMessage(`Downloading: ${progressPercent.toFixed(0)}%`);
         },
       };
 
@@ -165,13 +135,7 @@ const Download = ({ onDownloadComplete }) => {
       console.log('✅ Download completed, status code:', result.statusCode);
       console.log('📊 Bytes written:', result.bytesWritten);
 
-      if (result.statusCode === 200 || result.statusCode === 201) {
-        // Verify downloaded file
-        const fileExists = await RNFS.exists(MODEL_LOCAL_PATH);
-        if (!fileExists) {
-          throw new Error('Downloaded file not found on device!');
-        }
-
+      if (result.statusCode === 200) {
         const stat = await RNFS.stat(MODEL_LOCAL_PATH);
         console.log('📊 Downloaded file size:', stat.size, 'bytes');
         console.log('📊 Expected size:', EXPECTED_MODEL_SIZE, 'bytes');
@@ -180,9 +144,15 @@ const Download = ({ onDownloadComplete }) => {
           console.error('❌ Downloaded file is too small!');
           await RNFS.unlink(MODEL_LOCAL_PATH);
           throw new Error(
-            `Downloaded file is incomplete!\n` +
-              `Downloaded: ${(stat.size / 1024 / 1024).toFixed(1)} MB\n` +
-              `Expected: ${(EXPECTED_MODEL_SIZE / 1024 / 1024).toFixed(1)} MB`,
+            `Downloaded file is incomplete! Downloaded: ${(
+              stat.size /
+              1024 /
+              1024
+            ).toFixed(1)} MB, Expected: ${(
+              EXPECTED_MODEL_SIZE /
+              1024 /
+              1024
+            ).toFixed(1)} MB`,
           );
         }
 
@@ -191,7 +161,6 @@ const Download = ({ onDownloadComplete }) => {
           throw new Error('Downloaded file is empty!');
         }
 
-        // Verify it's not an HTML error page
         try {
           const firstBytes = await RNFS.read(
             MODEL_LOCAL_PATH,
@@ -208,30 +177,23 @@ const Download = ({ onDownloadComplete }) => {
 
           if (
             decoded.includes('<!DOCTYPE html>') ||
-            decoded.includes('<html') ||
-            decoded.includes('<?xml')
+            decoded.includes('<html')
           ) {
-            console.error('❌ HTML/XML page downloaded! (Error page)');
+            console.error('❌ HTML page downloaded! (Probably an error page)');
             await RNFS.unlink(MODEL_LOCAL_PATH);
             throw new Error(
-              'Server returned an error page instead of the model file.\n' +
-                'Please check:\n' +
-                '1. S3 bucket URL is correct\n' +
-                '2. File is publicly accessible\n' +
-                '3. CORS is configured properly',
+              'Server returned an error page. Please check the URL.',
             );
           }
         } catch (readError) {
-          console.log('ℹ️ File is in binary format (expected for ONNX model)');
+          console.log('ℹ️ File is in binary format (expected)');
         }
 
         console.log('✅ Model successfully downloaded and validated!');
-        setStatusMessage('Loading model into memory...');
+        setStatusMessage('Model downloaded successfully!');
 
         await loadModel();
         await loadVocab();
-
-        setStatusMessage('Model ready!');
 
         if (typeof onDownloadComplete === 'function') {
           onDownloadComplete(MODEL_LOCAL_PATH);
@@ -240,71 +202,41 @@ const Download = ({ onDownloadComplete }) => {
           setError('Application configuration error.');
         }
       } else {
-        throw new Error(
-          `Download failed with status code: ${result.statusCode}\n` +
-            `Please check your internet connection and try again.`,
-        );
+        throw new Error(`Download error, status code: ${result.statusCode}`);
       }
     } catch (err) {
       console.error('❌ Model download error:', err);
-      console.error('Error detail:', err.stack || err);
+      console.error('Error detail:', err.stack);
 
-      let errorMessage = `Model download failed!\n\n`;
+      const errorMessage = `Model download failed: ${err.message}
 
-      if (
-        err.message.includes('URL unreachable') ||
-        err.message.includes('Cannot reach')
-      ) {
-        errorMessage += `Network Error:\n${err.message}\n\n`;
-        errorMessage += `Please check:\n`;
-        errorMessage += `• Internet connection (WiFi recommended)\n`;
-        errorMessage += `• VPN settings (disable if active)\n`;
-        errorMessage += `• S3 bucket is publicly accessible\n`;
-      } else if (
-        err.message.includes('too small') ||
-        err.message.includes('incomplete')
-      ) {
-        errorMessage += `File Size Error:\n${err.message}\n\n`;
-        errorMessage += `The file on the server may be corrupted.\n`;
-      } else if (err.message.includes('HTML') || err.message.includes('XML')) {
-        errorMessage += `Server Configuration Error:\n${err.message}\n`;
-      } else {
-        errorMessage += `Error: ${err.message}\n\n`;
-        errorMessage += `Solutions:\n`;
-        errorMessage += `• Check internet connection\n`;
-        errorMessage += `• Try again later\n`;
-        errorMessage += `• Or use "Load from Assets" option\n`;
-      }
+📋 Solutions:
+
+1️⃣ Check Internet Connection
+   • Use Wi-Fi for better speed
+   • Disable VPN if active
+   • Try mobile data
+
+2️⃣ Download Manually
+   • URL: https://s3.eu-north-1.amazonaws.com/model.onnxugvjhb/model.onnx
+   • Size: ~460 MB
+   • Place in: android/app/src/main/assets/model.onnx
+   • Rebuild app: npm run android
+
+3️⃣ Use "Try Again" or "Load from Assets" button
+
+⚠️ Note: Model file (model.onnx) is currently missing from assets folder.`;
 
       setError(errorMessage);
       setStatusMessage('Error occurred');
-
-      Alert.alert('Model Download Error', errorMessage, [
-        {
-          text: 'Retry',
-          onPress: handleRetry,
-        },
-        {
-          text: 'Load from Assets',
-          onPress: handleSkip,
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-      ]);
+      Alert.alert('Model Download Error', errorMessage);
     } finally {
       setIsDownloading(false);
     }
   };
 
   useEffect(() => {
-    // Delay başlatma - uygulama yüklenirken bekle
-    const timer = setTimeout(() => {
-      downloadModel();
-    }, 500);
-
-    return () => clearTimeout(timer);
+    downloadModel();
   }, []);
 
   const handleRetry = () => {
@@ -315,22 +247,55 @@ const Download = ({ onDownloadComplete }) => {
 
   const handleSkip = async () => {
     try {
-      console.log('ℹ️ Download skipped, trying to load from assets...');
-      setStatusMessage('Loading model from assets...');
+      console.log('ℹ️ Trying to load from assets...');
       setIsDownloading(true);
+      setStatusMessage('Loading from assets...');
+
+      // Check if model exists in assets
+      const assetPath = 'model.onnx';
+      const exists = await RNFS.existsAssets(assetPath);
+
+      if (!exists) {
+        throw new Error(
+          'Model file not found in assets folder. Please download the model from AWS S3 and place it in android/app/src/main/assets/model.onnx',
+        );
+      }
+
+      console.log('✅ Model found in assets, copying to documents...');
+
+      // Copy from assets to documents directory
+      await RNFS.copyFileAssets(assetPath, MODEL_LOCAL_PATH);
+
+      const stat = await RNFS.stat(MODEL_LOCAL_PATH);
+      console.log('📊 Copied file size:', stat.size, 'bytes');
+
+      if (stat.size < MIN_VALID_SIZE) {
+        throw new Error('Model file in assets is too small or corrupted!');
+      }
+
+      console.log('✅ Model copied successfully from assets!');
+      setStatusMessage('Model loaded from assets!');
 
       await loadModel();
       await loadVocab();
 
       if (typeof onDownloadComplete === 'function') {
-        onDownloadComplete(null);
+        onDownloadComplete(MODEL_LOCAL_PATH);
       }
-    } catch (assetError) {
-      console.error('❌ Asset loading error:', assetError);
-      setError(
-        'Model could not be loaded from assets.\n' +
-          'Please ensure model.onnx is in the assets folder.',
-      );
+    } catch (err) {
+      console.error('❌ Load from assets error:', err);
+
+      const errorMessage = `Could not load model from assets: ${err.message}
+
+To fix this:
+1. Download model.onnx from: https://s3.eu-north-1.amazonaws.com/model.onnxugvjhb/model.onnx
+2. Place it in: android/app/src/main/assets/model.onnx
+3. Rebuild the app: npm run android
+
+Or try downloading again with "Try Again" button.`;
+
+      setError(errorMessage);
+      Alert.alert('Asset Load Error', errorMessage);
     } finally {
       setIsDownloading(false);
     }
@@ -338,66 +303,159 @@ const Download = ({ onDownloadComplete }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.card}>
-        <View style={styles.iconContainer}>
-          <View style={styles.iconCircle}>
-            <Text style={styles.iconText}>🤖</Text>
-          </View>
-        </View>
+      {/* Animated Background Gradients */}
+      <View style={styles.bgGradient1} />
+      <View style={styles.bgGradient2} />
+      <View style={styles.bgGradient3} />
 
-        <Text style={styles.title}>AI Model Preparation</Text>
+      {/* Floating Particles */}
+      <View style={[styles.particle, styles.particle1]} />
+      <View style={[styles.particle, styles.particle2]} />
+      <View style={[styles.particle, styles.particle3]} />
+
+      <View style={styles.card}>
+        {/* Header with Icon */}
+        <Animated.View
+          style={[
+            styles.headerContainer,
+            { transform: [{ scale: pulseAnim }] },
+          ]}
+        >
+          <View style={styles.iconWrapper}>
+            <View style={styles.iconGradient}>
+              <Text style={styles.iconText}>🧠</Text>
+            </View>
+            <View style={styles.iconRing1} />
+            <View style={styles.iconRing2} />
+          </View>
+        </Animated.View>
+
+        <Text style={styles.title}>AI Model Setup</Text>
+        <Text style={styles.subtitle}>
+          Preparing your intelligent assistant
+        </Text>
 
         {isDownloading ? (
           <View style={styles.progressContainer}>
-            <ActivityIndicator size="large" color="#6366f1" />
-            <Text style={styles.progressText}>{statusMessage}</Text>
+            {/* Animated Loader */}
+            <View style={styles.loaderWrapper}>
+              <ActivityIndicator size="large" color="#818CF8" />
+              <View style={styles.loaderGlow} />
+            </View>
+
+            <Text style={styles.statusText}>{statusMessage}</Text>
+
             {downloadProgress > 0 && (
-              <>
+              <View style={styles.progressSection}>
+                {/* Progress Bar */}
                 <View style={styles.progressBarContainer}>
-                  <View style={styles.progressBar}>
+                  <View style={styles.progressBarBg}>
                     <View
                       style={[
-                        styles.progressFill,
-                        { width: `${Math.min(downloadProgress, 100)}%` },
+                        styles.progressBarFill,
+                        { width: `${downloadProgress}%` },
                       ]}
-                    />
+                    >
+                      <View style={styles.progressShimmer} />
+                    </View>
                   </View>
-                  <Text style={styles.progressPercentage}>
-                    {downloadProgress.toFixed(1)}%
-                  </Text>
+
+                  {/* Progress Percentage Badge */}
+                  <View style={styles.progressBadge}>
+                    <Text style={styles.progressBadgeText}>
+                      {downloadProgress.toFixed(0)}%
+                    </Text>
+                  </View>
                 </View>
-              </>
+
+                {/* Stats Grid */}
+                <View style={styles.statsGrid}>
+                  <View style={styles.statBox}>
+                    <View style={styles.statIconContainer}>
+                      <Text style={styles.statIcon}>📊</Text>
+                    </View>
+                    <Text style={styles.statLabel}>Progress</Text>
+                    <Text style={styles.statValue}>
+                      {downloadProgress.toFixed(1)}%
+                    </Text>
+                  </View>
+
+                  <View style={styles.statBox}>
+                    <View style={styles.statIconContainer}>
+                      <Text style={styles.statIcon}>⚡</Text>
+                    </View>
+                    <Text style={styles.statLabel}>Status</Text>
+                    <Text style={styles.statValue}>Active</Text>
+                  </View>
+                </View>
+              </View>
             )}
-            <View style={styles.hintContainer}>
-              <Text style={styles.hint}>
-                Model download is required on first use.{'\n'}
-                File size: ~460 MB{'\n'}
-                This is a one-time process and may take a few minutes.
+
+            {/* Info Card */}
+            <View style={styles.infoCard}>
+              <View style={styles.infoHeader}>
+                <View style={styles.infoIconBox}>
+                  <Text style={styles.infoIcon}>ℹ️</Text>
+                </View>
+                <Text style={styles.infoTitle}>First Time Setup</Text>
+              </View>
+              <View style={styles.infoDivider} />
+              <Text style={styles.infoText}>
+                • Model download required on first use{'\n'}• File size: ~460 MB
+                {'\n'}• One-time process{'\n'}• May take a few minutes
               </Text>
             </View>
           </View>
         ) : error ? (
           <View style={styles.errorContainer}>
-            <View style={styles.errorIcon}>
-              <Text style={styles.errorIconText}>⚠️</Text>
+            {/* Error Icon */}
+            <View style={styles.errorIconWrapper}>
+              <View style={styles.errorIconBg}>
+                <Text style={styles.errorIcon}>⚠️</Text>
+              </View>
+              <View style={styles.errorIconGlow} />
             </View>
-            <Text style={styles.errorText}>{error}</Text>
-            <View style={styles.buttonContainer}>
+
+            <Text style={styles.errorTitle}>Download Failed</Text>
+            <View style={styles.errorMessageBox}>
+              <Text style={styles.errorMessage}>{error}</Text>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.buttonGroup}>
               <TouchableOpacity
-                style={styles.retryButton}
+                style={styles.primaryButton}
                 onPress={handleRetry}
+                activeOpacity={0.85}
               >
-                <Text style={styles.retryButtonText}>Try Again</Text>
+                <View style={styles.buttonContent}>
+                  <Text style={styles.buttonIcon}>🔄</Text>
+                  <Text style={styles.buttonText}>Try Again</Text>
+                </View>
+                <View style={styles.buttonGlow} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-                <Text style={styles.skipButtonText}>Load from Assets</Text>
+
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={handleSkip}
+                activeOpacity={0.85}
+              >
+                <View style={styles.buttonContent}>
+                  <Text style={styles.buttonIcon}>📁</Text>
+                  <Text style={styles.secondaryButtonText}>
+                    Load from Assets
+                  </Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
         ) : (
           <View style={styles.progressContainer}>
-            <ActivityIndicator size="large" color="#6366f1" />
-            <Text style={styles.progressText}>{statusMessage}</Text>
+            <View style={styles.loaderWrapper}>
+              <ActivityIndicator size="large" color="#818CF8" />
+              <View style={styles.loaderGlow} />
+            </View>
+            <Text style={styles.statusText}>{statusMessage}</Text>
           </View>
         )}
       </View>
@@ -412,175 +470,447 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fd',
-    padding: 20,
+    backgroundColor: '#0A0F1E',
+    position: 'relative',
+    overflow: 'hidden',
   },
+
+  // Background Gradients
+  bgGradient1: {
+    position: 'absolute',
+    width: 500,
+    height: 500,
+    borderRadius: 250,
+    backgroundColor: 'rgba(99, 102, 241, 0.05)',
+    top: -200,
+    right: -200,
+  },
+  bgGradient2: {
+    position: 'absolute',
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: 'rgba(168, 85, 247, 0.05)',
+    bottom: -150,
+    left: -150,
+  },
+  bgGradient3: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(59, 130, 246, 0.05)',
+    top: '40%',
+    right: -100,
+  },
+
+  // Floating Particles
+  particle: {
+    position: 'absolute',
+    borderRadius: 50,
+    backgroundColor: 'rgba(129, 140, 248, 0.1)',
+  },
+  particle1: {
+    width: 8,
+    height: 8,
+    top: '20%',
+    left: '15%',
+  },
+  particle2: {
+    width: 12,
+    height: 12,
+    top: '60%',
+    right: '20%',
+  },
+  particle3: {
+    width: 6,
+    height: 6,
+    bottom: '30%',
+    left: '25%',
+  },
+
+  // Main Card
   card: {
-    backgroundColor: 'white',
-    borderRadius: 24,
+    backgroundColor: '#1A1F35',
+    borderRadius: 32,
     padding: 32,
-    width: '100%',
-    maxWidth: 400,
+    width: width * 0.9,
+    maxWidth: 420,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.6,
+    shadowRadius: 36,
+    elevation: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.1)',
     alignItems: 'center',
   },
-  iconContainer: {
-    marginBottom: 24,
+
+  // Header & Icon
+  headerContainer: {
+    marginBottom: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#eef2ff',
+  iconWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconGradient: {
+    width: 110,
+    height: 110,
+    borderRadius: 32,
+    backgroundColor: '#6366F1',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#6366f1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.8,
+    shadowRadius: 28,
+    elevation: 12,
+    zIndex: 3,
   },
   iconText: {
-    fontSize: 40,
+    fontSize: 56,
   },
+  iconRing1: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 2,
+    borderColor: 'rgba(99, 102, 241, 0.3)',
+    zIndex: 2,
+  },
+  iconRing2: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    borderWidth: 1,
+    borderColor: 'rgba(99, 102, 241, 0.15)',
+    zIndex: 1,
+  },
+
+  // Typography
   title: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginBottom: 32,
+    fontSize: 34,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginBottom: 10,
+    letterSpacing: -1,
+    textAlign: 'center',
+    textShadowColor: 'rgba(99, 102, 241, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  subtitle: {
+    fontSize: 17,
+    color: '#94A3B8',
+    marginBottom: 40,
+    textAlign: 'center',
+    fontWeight: '600',
     letterSpacing: 0.3,
   },
+
+  // Progress Container
   progressContainer: {
-    alignItems: 'center',
     width: '100%',
+    alignItems: 'center',
   },
-  progressText: {
-    marginTop: 20,
-    fontSize: 16,
-    color: '#475569',
-    fontWeight: '600',
+  loaderWrapper: {
+    position: 'relative',
+    width: 90,
+    height: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  loaderGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(129, 140, 248, 0.15)',
+    zIndex: -1,
+  },
+  statusText: {
+    fontSize: 17,
+    color: '#F1F5F9',
+    fontWeight: '700',
     textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 26,
+    letterSpacing: 0.2,
+  },
+
+  // Progress Section
+  progressSection: {
+    width: '100%',
+    marginBottom: 28,
   },
   progressBarContainer: {
     width: '100%',
-    marginTop: 24,
-    alignItems: 'center',
+    marginBottom: 24,
+    position: 'relative',
   },
-  progressBar: {
+  progressBarBg: {
     width: '100%',
-    height: 12,
-    backgroundColor: '#e2e8f0',
+    height: 18,
+    backgroundColor: '#293548',
     borderRadius: 12,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.1)',
   },
-  progressFill: {
+  progressBarFill: {
     height: '100%',
-    backgroundColor: '#6366f1',
+    backgroundColor: '#6366F1',
     borderRadius: 12,
-    shadowColor: '#6366f1',
+    position: 'relative',
+    shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
+    shadowOpacity: 1,
+    shadowRadius: 16,
   },
-  progressPercentage: {
-    marginTop: 12,
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#6366f1',
+  progressShimmer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '60%',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: 12,
+  },
+  progressBadge: {
+    position: 'absolute',
+    right: -8,
+    top: -32,
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  progressBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
     letterSpacing: 0.5,
   },
-  hintContainer: {
-    marginTop: 24,
-    padding: 20,
-    backgroundColor: '#f8fafc',
-    borderRadius: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#6366f1',
-  },
-  hint: {
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  errorContainer: {
-    backgroundColor: '#fef2f2',
-    padding: 24,
-    borderRadius: 20,
-    alignItems: 'center',
-    width: '100%',
-    borderLeftWidth: 4,
-    borderLeftColor: '#ef4444',
-  },
-  errorIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#fee2e2',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  errorIconText: {
-    fontSize: 32,
-  },
-  errorText: {
-    color: '#dc2626',
-    fontSize: 14,
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  buttonContainer: {
+
+  // Stats Grid
+  statsGrid: {
     flexDirection: 'row',
     gap: 12,
     width: '100%',
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#293548',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.1)',
+  },
+  statIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
     justifyContent: 'center',
-  },
-  retryButton: {
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 16,
-    flex: 1,
-    maxWidth: 150,
     alignItems: 'center',
-    shadowColor: '#6366f1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: 12,
   },
-  retryButtonText: {
-    color: 'white',
-    fontSize: 15,
+  statIcon: {
+    fontSize: 22,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginBottom: 8,
     fontWeight: '700',
-    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  skipButton: {
-    backgroundColor: '#64748b',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 16,
-    flex: 1,
-    maxWidth: 150,
+  statValue: {
+    fontSize: 22,
+    color: '#FFFFFF',
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+
+  // Info Card
+  infoCard: {
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.15)',
+  },
+  infoHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#64748b',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: 12,
   },
-  skipButtonText: {
-    color: 'white',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+  infoIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  infoIcon: {
+    fontSize: 18,
+  },
+  infoTitle: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  infoDivider: {
+    width: '100%',
+    height: 1,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    marginBottom: 16,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    lineHeight: 24,
+    fontWeight: '600',
+    letterSpacing: 0.1,
+  },
+
+  // Error Container
+  errorContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  errorIconWrapper: {
+    position: 'relative',
+    width: 90,
+    height: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  errorIconBg: {
+    width: 90,
+    height: 90,
+    borderRadius: 28,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    zIndex: 2,
+  },
+  errorIcon: {
+    fontSize: 48,
+  },
+  errorIconGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    zIndex: 1,
+  },
+  errorTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginBottom: 16,
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  errorMessageBox: {
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    marginBottom: 32,
+    borderLeftWidth: 4,
+    borderLeftColor: '#EF4444',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.15)',
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#CBD5E1',
+    textAlign: 'center',
+    lineHeight: 24,
+    fontWeight: '600',
+  },
+
+  // Buttons
+  buttonGroup: {
+    width: '100%',
+    gap: 14,
+  },
+  primaryButton: {
+    position: 'relative',
+    backgroundColor: '#6366F1',
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  buttonGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '50%',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    zIndex: 1,
+  },
+  buttonIcon: {
+    fontSize: 22,
+    marginRight: 12,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  secondaryButton: {
+    backgroundColor: '#293548',
+    paddingVertical: 20,
+    paddingHorizontal: 32,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#3F4B63',
+  },
+  secondaryButtonText: {
+    color: '#F1F5F9',
+    fontSize: 17,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });

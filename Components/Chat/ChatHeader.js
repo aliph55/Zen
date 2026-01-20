@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
 import styles from './styles';
 
 const ChatHeader = ({
@@ -12,26 +13,35 @@ const ChatHeader = ({
 }) => {
   return (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>{title || ''}</Text>
-      <View style={styles.statusContainer}>
-        <Text style={styles.statusText}>{formatTime()}</Text>
-        {modelLoaded ? (
+      <View style={styles.headerLeft}>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {title}
+        </Text>
+
+        <View style={styles.statusContainer}>
           <View style={styles.statusIndicator}>
-            <View style={[styles.statusDot, styles.statusDotActive]} />
-            <Text style={styles.statusText}>Model Ready</Text>
+            <View
+              style={[
+                styles.statusDot,
+                modelLoaded && !modelLoadError
+                  ? styles.statusDotActive
+                  : styles.statusDotError,
+              ]}
+            />
+            <Text style={styles.statusText}>
+              {modelLoaded ? 'Ready' : isLoading ? 'Loading...' : 'Error'}
+            </Text>
           </View>
-        ) : isLoading ? (
-          <View style={styles.statusIndicator}>
-            <ActivityIndicator size="small" color="#007AFF" />
-            <Text style={styles.statusText}>Loading Model...</Text>
-          </View>
-        ) : modelLoadError ? (
-          <View style={styles.statusIndicator}>
-            <View style={[styles.statusDot, styles.statusDotError]} />
-            <Text style={styles.statusText}>Error</Text>
-          </View>
-        ) : null}
+        </View>
       </View>
+
+      <TouchableOpacity
+        style={styles.newChatButton}
+        onPress={startNewGroup}
+        activeOpacity={0.8}
+      >
+        <Icon name="plus-circle" size={24} color="#6366F1" />
+      </TouchableOpacity>
     </View>
   );
 };

@@ -1,12 +1,7 @@
-// Components/Chat/ChatInput.js
 import React from 'react';
-import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-} from 'react-native';
+import { View, TextInput, TouchableOpacity, Text } from 'react-native';
+import Icon from 'react-native-vector-icons/Feather';
+import styles from './styles';
 
 const ChatInput = ({
   inputText,
@@ -16,17 +11,7 @@ const ChatInput = ({
   isStreaming,
   sendMessage,
 }) => {
-  // Debug log
   const handleSend = () => {
-    console.log('🔵 Send button pressed!', {
-      inputText,
-      inputLength: inputText?.length,
-      modelLoaded,
-      isLoading,
-      isStreaming,
-      sendMessageType: typeof sendMessage,
-    });
-
     if (sendMessage && typeof sendMessage === 'function') {
       sendMessage();
     } else {
@@ -34,70 +19,31 @@ const ChatInput = ({
     }
   };
 
+  const canSend =
+    modelLoaded && !isLoading && !isStreaming && inputText?.trim();
+
   return (
     <View style={styles.inputContainer}>
       <TextInput
-        style={styles.input}
+        style={styles.textInput}
         value={inputText}
         onChangeText={setInputText}
-        placeholder="Write your message..."
-        placeholderTextColor="#999"
+        placeholder="Type your message..."
+        placeholderTextColor="#64748B"
         multiline
         editable={modelLoaded && !isLoading && !isStreaming}
       />
 
       <TouchableOpacity
-        style={[
-          styles.sendButton,
-          (!modelLoaded || isLoading || isStreaming || !inputText?.trim()) &&
-            styles.sendButtonDisabled,
-        ]}
+        style={[styles.sendButton, !canSend && styles.sendButtonDisabled]}
         onPress={handleSend}
-        disabled={
-          !modelLoaded || isLoading || isStreaming || !inputText?.trim()
-        }
+        disabled={!canSend}
+        activeOpacity={0.8}
       >
-        <Text style={styles.sendButtonText}>Send</Text>
+        <Icon name="send" size={20} color={canSend ? '#fff' : '#64748B'} />
       </TouchableOpacity>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  inputContainer: {
-    flexDirection: 'row',
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    backgroundColor: '#fff',
-  },
-  input: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    marginRight: 10,
-    maxHeight: 100,
-    fontSize: 16,
-  },
-  sendButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  sendButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
 
 export default ChatInput;
