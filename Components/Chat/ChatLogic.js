@@ -1,19 +1,21 @@
 // Components/Chat/ChatLogic.js
-// ✅ FIXED: Real AI inference instead of mock responses
-import { useState, useEffect, useRef } from 'react';
+// ✅ REAL AI - No mock responses
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useModel } from '../../contexts/ModelContext';
+import * as ort from 'onnxruntime-react-native';
 
 export const useChatLogic = ({ route, navigation }) => {
   const {
-    session,
-    vocab,
+    modelLoaded,
+    modelLoadError,
     isLoading: modelIsLoading,
-    isReady: modelLoaded,
+    vocab,
+    reverseVocab,
+    sessionRef,
     loadModel,
     loadVocab,
-    runInference, // ✅ This is the real AI function
   } = useModel();
 
   const [messages, setMessages] = useState([]);
@@ -22,7 +24,6 @@ export const useChatLogic = ({ route, navigation }) => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState('');
   const [streamingComplete, setStreamingComplete] = useState(false);
-  const [modelLoadError, setModelLoadError] = useState(null);
   const [title, setTitle] = useState('New Chat');
   const [isGroupNameModalVisible, setGroupNameModalVisible] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -30,50 +31,30 @@ export const useChatLogic = ({ route, navigation }) => {
 
   const scrollViewRef = useRef(null);
 
-  // Debug log - Model durumunu izle
-  useEffect(() => {
-    console.log('📊 ChatLogic - Model Status:', {
-      modelLoaded,
-      session: !!session,
-      vocab: !!vocab,
-      modelIsLoading,
-    });
-  }, [modelLoaded, session, vocab, modelIsLoading]);
-
   // Model yükleme
   useEffect(() => {
-    const initializeModel = async () => {
+    const initModel = async () => {
       if (!modelLoaded && !modelIsLoading) {
-        console.log('🔄 Model henüz yüklenmedi, yükleniyor...');
-        try {
-          await loadModel();
-        } catch (error) {
-          console.error('❌ Model yükleme hatası:', error);
-          setModelLoadError(error.message);
-        }
-      } else if (modelLoaded) {
-        console.log('✅ Model zaten yüklü');
+        console.log('🔄 Loading model...');
+        await loadModel();
+        await loadVocab();
       }
     };
-
-    initializeModel();
-  }, [modelLoaded, modelIsLoading]);
+    initModel();
+  }, []);
 
   // Grup yükleme
   useEffect(() => {
     const loadGroup = async () => {
-      console.log('Gruplar yükleniyor...');
       if (route.params?.groupId) {
         const gId = route.params.groupId;
         setGroupId(gId);
         await loadMessagesFromGroup(gId);
       }
     };
-
     loadGroup();
   }, [route.params?.groupId]);
 
-  // Format time
   const formatTime = timestamp => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
@@ -83,105 +64,280 @@ export const useChatLogic = ({ route, navigation }) => {
     });
   };
 
-  // Load messages from AsyncStorage
   const loadMessagesFromGroup = async gId => {
     try {
-      console.log('✅ AsyncStorage çalışıyor');
-      const groups = await AsyncStorage.getItem('chatGroups');
+      const groups = await AsyncStorage.getItem('groups');
       if (groups) {
         const parsedGroups = JSON.parse(groups);
         const group = parsedGroups.find(g => g.id === gId);
-        if (group) {
-          setMessages(group.messages || []);
-          setTitle(group.name || 'Chat');
+        if (group && group.chats && group.chats.length > 0) {
+          const chat = group.chats[0];
+          setMessages(chat.messages || []);
+          setTitle(chat.title || 'Chat');
         }
       }
     } catch (error) {
-      console.error('❌ Mesajlar yüklenirken hata:', error);
+      console.error('❌ Load messages error:', error);
     }
   };
 
-  // Save messages to AsyncStorage
   const saveMessagesToGroup = async (gId, msgs) => {
     try {
-      const groups = await AsyncStorage.getItem('chatGroups');
+      const groups = await AsyncStorage.getItem('groups');
       const parsedGroups = groups ? JSON.parse(groups) : [];
 
       const groupIndex = parsedGroups.findIndex(g => g.id === gId);
-      if (groupIndex !== -1) {
-        parsedGroups[groupIndex].messages = msgs;
-        parsedGroups[groupIndex].lastMessage =
-          msgs[msgs.length - 1]?.text || '';
-        parsedGroups[groupIndex].timestamp = new Date().toISOString();
-        await AsyncStorage.setItem('chatGroups', JSON.stringify(parsedGroups));
-      }
-    } catch (error) {
-      console.error('❌ Mesajlar kaydedilirken hata:', error);
-    }
-  };
-
-  // Start new group
-  const startNewGroup = async () => {
-    const newGroup = {
-      id: Date.now().toString(),
-      name: 'New Chat',
-      messages: [],
-      timestamp: new Date().toISOString(),
-    };
-
-    try {
-      const groups = await AsyncStorage.getItem('chatGroups');
-      const parsedGroups = groups ? JSON.parse(groups) : [];
-      parsedGroups.unshift(newGroup);
-      await AsyncStorage.setItem('chatGroups', JSON.stringify(parsedGroups));
-
-      navigation.replace('Chat', { groupId: newGroup.id });
-    } catch (error) {
-      console.error('❌ Yeni grup oluşturulurken hata:', error);
-    }
-  };
-
-  // Update group name
-  const updateGroupName = async () => {
-    if (!newGroupName.trim() || !groupId) return;
-
-    try {
-      const groups = await AsyncStorage.getItem('chatGroups');
-      const parsedGroups = groups ? JSON.parse(groups) : [];
-      const groupIndex = parsedGroups.findIndex(g => g.id === groupId);
 
       if (groupIndex !== -1) {
-        parsedGroups[groupIndex].name = newGroupName.trim();
-        await AsyncStorage.setItem('chatGroups', JSON.stringify(parsedGroups));
-        setTitle(newGroupName.trim());
-        setGroupNameModalVisible(false);
-        setNewGroupName('');
+        if (
+          parsedGroups[groupIndex].chats &&
+          parsedGroups[groupIndex].chats.length > 0
+        ) {
+          parsedGroups[groupIndex].chats[0].messages = msgs;
+          parsedGroups[groupIndex].chats[0].lastOpened =
+            new Date().toISOString();
+        }
+        await AsyncStorage.setItem('groups', JSON.stringify(parsedGroups));
       }
     } catch (error) {
-      console.error('❌ Grup adı güncellenirken hata:', error);
+      console.error('❌ Save messages error:', error);
     }
   };
 
-  // ✅ TEMPORARY: Mock AI response until ModelContext is fixed
+  // Tokenize
+  const tokenize = useCallback(
+    async text => {
+      if (!vocab) return [50256];
+
+      const trimmed = text.trim();
+      if (!trimmed) return [50256];
+
+      const tokens = [];
+      const words = trimmed.toLowerCase().split(/\s+/);
+
+      for (const word of words) {
+        if (!word) continue;
+
+        if (vocab[word] !== undefined) {
+          tokens.push(vocab[word]);
+        } else if (vocab['Ġ' + word] !== undefined) {
+          tokens.push(vocab['Ġ' + word]);
+        } else {
+          for (const char of word) {
+            tokens.push(vocab[char] || vocab['<unk>'] || 10);
+          }
+        }
+      }
+
+      tokens.unshift(vocab['<|endoftext|>'] || 50256);
+      return tokens;
+    },
+    [vocab],
+  );
+
+  // Decode token
+  const decodeToken = useCallback(
+    tokenId => {
+      if (!reverseVocab || tokenId === undefined || tokenId === null) {
+        return '';
+      }
+      if (tokenId === 50256 || tokenId === 50257) return '';
+
+      const token = reverseVocab[tokenId];
+      if (!token) return '';
+
+      return token
+        .replace(/^Ġ/g, ' ')
+        .replace(/Ċ/g, '\n')
+        .replace(/ĉ/g, '\t')
+        .replace(/<\|endoftext\|>/g, '');
+    },
+    [reverseVocab],
+  );
+
+  // Create empty KV cache
+  const createEmptyKVCache = useCallback((numLayers = 6) => {
+    const kvCache = {};
+    for (let i = 0; i < numLayers; i++) {
+      kvCache[`past_key_values.${i}.key`] = new ort.Tensor(
+        'float32',
+        new Float32Array(0),
+        [1, 12, 0, 64],
+      );
+      kvCache[`past_key_values.${i}.value`] = new ort.Tensor(
+        'float32',
+        new Float32Array(0),
+        [1, 12, 0, 64],
+      );
+    }
+    return kvCache;
+  }, []);
+
+  // ✅ REAL AI GENERATION
+  const generateAIResponse = async prompt => {
+    if (!sessionRef.current) {
+      throw new Error('Model not loaded');
+    }
+
+    try {
+      const tokens = await tokenize(prompt);
+      const inputIds = tokens.slice(0, 128);
+
+      const maxNewTokens = 150; // 50 → 150 (daha uzun cevaplar)
+      const temperature = 0.9; // 0.8 → 0.9 (daha yaratıcı)
+      const eosTokenId = vocab?.['<|endoftext|>'] || 50256;
+
+      let generatedText = '';
+      let generatedTokens = [];
+      let pastKVCache = null;
+      let pastLength = 0;
+
+      setCurrentStreamingMessage('');
+      setIsStreaming(true);
+      setStreamingComplete(false);
+
+      for (let step = 0; step < maxNewTokens; step++) {
+        const inputForStep =
+          step === 0 ? inputIds : [generatedTokens[generatedTokens.length - 1]];
+
+        const inputTensor = new ort.Tensor(
+          'int64',
+          new BigInt64Array(inputForStep.map(id => BigInt(id))),
+          [1, inputForStep.length],
+        );
+
+        // Attention mask
+        const totalLength = pastLength + inputForStep.length;
+        const attentionMaskArray = new BigInt64Array(totalLength);
+        for (let i = 0; i < totalLength; i++) {
+          attentionMaskArray[i] = BigInt(1);
+        }
+        const attentionMask = new ort.Tensor('int64', attentionMaskArray, [
+          1,
+          totalLength,
+        ]);
+
+        // Position IDs
+        const positionIdsArray = new BigInt64Array(inputForStep.length);
+        for (let i = 0; i < inputForStep.length; i++) {
+          positionIdsArray[i] = BigInt(pastLength + i);
+        }
+        const positionIds = new ort.Tensor('int64', positionIdsArray, [
+          1,
+          inputForStep.length,
+        ]);
+
+        const feeds = {
+          input_ids: inputTensor,
+          attention_mask: attentionMask,
+          position_ids: positionIds,
+        };
+
+        // Add KV cache
+        if (step === 0) {
+          Object.assign(feeds, createEmptyKVCache(6));
+        } else if (pastKVCache) {
+          for (let i = 0; i < 6; i++) {
+            feeds[`past_key_values.${i}.key`] = pastKVCache[`present.${i}.key`];
+            feeds[`past_key_values.${i}.value`] =
+              pastKVCache[`present.${i}.value`];
+          }
+        } else {
+          Object.assign(feeds, createEmptyKVCache(6));
+        }
+
+        const results = await sessionRef.current.run(feeds);
+
+        if (!results.logits?.data) {
+          throw new Error('Invalid model output');
+        }
+
+        pastKVCache = results;
+        pastLength += inputForStep.length;
+
+        // Get next token
+        const logits = results.logits;
+        const vocabSize = logits.dims[2];
+        const lastTokenLogits = new Float32Array(vocabSize);
+        const start = logits.data.length - vocabSize;
+
+        for (let i = 0; i < vocabSize; i++) {
+          lastTokenLogits[i] = logits.data[start + i];
+        }
+
+        // Temperature + Softmax
+        const scaledLogits = lastTokenLogits.map(l => l / temperature);
+        const maxLogit = Math.max(...scaledLogits);
+        const expLogits = scaledLogits.map(l =>
+          Math.exp(Math.min(l - maxLogit, 20)),
+        );
+        const sumExp = expLogits.reduce((a, b) => a + b, 0);
+        const probs = expLogits.map(e => e / sumExp);
+
+        // Sample next token
+        let nextTokenId = 0;
+        let maxProb = 0;
+        for (let i = 0; i < probs.length; i++) {
+          if (probs[i] > maxProb) {
+            maxProb = probs[i];
+            nextTokenId = i;
+          }
+        }
+
+        // Decode and append
+        const decoded = decodeToken(nextTokenId);
+        if (decoded) {
+          generatedText += decoded;
+          generatedTokens.push(nextTokenId);
+
+          // Her 3 token'de bir UI güncelle (daha smooth)
+          if (generatedTokens.length % 3 === 0 || step === maxNewTokens - 1) {
+            setCurrentStreamingMessage(generatedText.trim());
+          }
+        }
+
+        console.log(
+          `Step ${step}: Token ${nextTokenId} (${
+            decoded || 'empty'
+          }) - Total: ${generatedTokens.length}`,
+        );
+
+        // Stop conditions
+        if (nextTokenId === eosTokenId) break;
+
+        if (generatedTokens.length >= 3) {
+          const last3 = generatedTokens.slice(-3);
+          if (last3[0] === last3[1] && last3[1] === last3[2]) break;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+
+      setStreamingComplete(true);
+      const finalText = generatedText.trim() || 'No response generated.';
+      setCurrentStreamingMessage(finalText);
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      return finalText;
+    } catch (error) {
+      console.error('❌ AI generation error:', error);
+      throw error;
+    }
+  };
+
+  // ✅ SEND MESSAGE - REAL AI
   const sendMessage = async () => {
-    console.log('🚀 sendMessage called');
-
     if (!inputText.trim()) {
-      console.log('⚠️ Empty input');
       Alert.alert('Warning', 'Please enter a message');
       return;
     }
 
-    if (!modelLoaded || !session || !vocab) {
-      console.log('❌ Model not ready');
-      Alert.alert('Error', 'AI model is not ready yet. Please wait...');
+    if (!modelLoaded || !sessionRef.current || !vocab) {
+      Alert.alert('Error', 'AI model not ready. Please wait...');
       return;
     }
 
-    if (isLoading || isStreaming) {
-      console.log('⚠️ Already processing');
-      return;
-    }
+    if (isLoading || isStreaming) return;
 
     const userMessage = {
       id: Date.now().toString(),
@@ -192,47 +348,14 @@ export const useChatLogic = ({ route, navigation }) => {
 
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
+    const userInput = inputText;
     setInputText('');
     setIsLoading(true);
-    setIsStreaming(true);
-    setCurrentStreamingMessage('');
-    setStreamingComplete(false);
 
     try {
-      console.log('🧠 Generating AI response...');
+      // ✅ REAL AI CALL
+      const aiResponse = await generateAIResponse(userInput);
 
-      // ✅ SMART MOCK RESPONSES based on user input
-      const userInput = userMessage.text.toLowerCase();
-      let aiResponse = '';
-
-      if (userInput.includes('hello') || userInput.includes('hi')) {
-        aiResponse = "Hello! I'm your AI assistant. How can I help you today?";
-      } else if (userInput.includes('how are you')) {
-        aiResponse =
-          "I'm functioning well, thank you for asking! I'm here to assist you with any questions or tasks you have.";
-      } else if (userInput.includes('what') && userInput.includes('do')) {
-        aiResponse =
-          'I can help you with a variety of tasks including answering questions, providing information, creative writing, coding assistance, and much more. What would you like help with?';
-      } else if (userInput.includes('thank')) {
-        aiResponse = "You're welcome! Feel free to ask me anything else.";
-      } else if (userInput.includes('bye')) {
-        aiResponse =
-          "Goodbye! Have a great day. I'll be here whenever you need me.";
-      } else {
-        // Generic intelligent response
-        aiResponse = `I understand you're asking about "${userMessage.text}". While I'm currently running in demo mode, I'm designed to help with various tasks. Once the full AI model is connected, I'll be able to provide more detailed and context-aware responses!`;
-      }
-
-      // ✅ Simulate streaming effect
-      for (let i = 0; i < aiResponse.length; i++) {
-        setCurrentStreamingMessage(aiResponse.substring(0, i + 1));
-        await new Promise(resolve => setTimeout(resolve, 20));
-      }
-
-      setStreamingComplete(true);
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // ✅ Save AI response
       const aiMessage = {
         id: (Date.now() + 1).toString(),
         text: aiResponse,
@@ -246,17 +369,68 @@ export const useChatLogic = ({ route, navigation }) => {
       if (groupId) {
         await saveMessagesToGroup(groupId, finalMessages);
       }
-
-      console.log('✅ Message sent successfully');
     } catch (error) {
-      console.error('❌ Send message error:', error);
-      Alert.alert('Error', `Failed to send message: ${error.message}`);
+      console.error('❌ Send error:', error);
+      Alert.alert('Error', `Failed: ${error.message}`);
       setMessages(messages);
     } finally {
       setIsLoading(false);
       setIsStreaming(false);
       setCurrentStreamingMessage('');
-      setStreamingComplete(false);
+    }
+  };
+
+  const startNewGroup = async () => {
+    const newGroupId = Date.now().toString();
+    const newChatId = (Date.now() + 1).toString();
+
+    const newGroup = {
+      id: newGroupId,
+      name: 'General',
+      chats: [
+        {
+          id: newChatId,
+          title: 'New Chat',
+          startDate: new Date().toISOString(),
+          lastOpened: new Date().toISOString(),
+          messages: [],
+        },
+      ],
+    };
+
+    try {
+      const groups = await AsyncStorage.getItem('groups');
+      const parsed = groups ? JSON.parse(groups) : [];
+      parsed.unshift(newGroup);
+      await AsyncStorage.setItem('groups', JSON.stringify(parsed));
+
+      setGroupId(newGroupId);
+      setMessages([]);
+      setTitle('New Chat');
+
+      navigation.replace('Chat', { groupId: newGroupId, chatId: newChatId });
+    } catch (error) {
+      console.error('❌ New group error:', error);
+    }
+  };
+
+  const updateGroupName = async () => {
+    if (!newGroupName.trim() || !groupId) return;
+
+    try {
+      const groups = await AsyncStorage.getItem('chatGroups');
+      const parsed = groups ? JSON.parse(groups) : [];
+      const idx = parsed.findIndex(g => g.id === groupId);
+
+      if (idx !== -1) {
+        parsed[idx].name = newGroupName.trim();
+        await AsyncStorage.setItem('chatGroups', JSON.stringify(parsed));
+        setTitle(newGroupName.trim());
+        setGroupNameModalVisible(false);
+        setNewGroupName('');
+      }
+    } catch (error) {
+      console.error('❌ Update name error:', error);
     }
   };
 

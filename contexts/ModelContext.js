@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useRef } from 'react';
 import { InferenceSession } from 'onnxruntime-react-native';
 import RNFS from 'react-native-fs';
 import { Alert } from 'react-native';
@@ -14,10 +14,13 @@ export const useModel = () => {
 };
 
 export const ModelProvider = ({ children }) => {
-  const [session, setSession] = useState(null);
+  // ✅ session yerine sessionRef kullan (ChatLogic ile uyumlu)
+  const sessionRef = useRef(null);
+
   const [vocab, setVocab] = useState(null);
+  const [reverseVocab, setReverseVocab] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isReady, setIsReady] = useState(false);
+  const [modelLoaded, setModelLoaded] = useState(false);
 
   // Assets'ten model yükleme
   const loadModelFromAssets = async () => {
@@ -31,11 +34,8 @@ export const ModelProvider = ({ children }) => {
       const exists = await RNFS.exists(destPath);
 
       if (!exists) {
-        console.log('📋 Copying model from assets to app directory...');
-
-        // Android için assets'ten kopyalama
+        console.log('📋 Copying model from assets...');
         await RNFS.copyFileAssets(assetPath, destPath);
-
         console.log('✅ Model copied successfully');
       } else {
         console.log('✅ Model already exists in app directory');
@@ -50,15 +50,20 @@ export const ModelProvider = ({ children }) => {
       );
 
       if (stat.size < 400000000) {
-        // 400 MB minimum
-        console.warn('⚠️ Model file seems too small, may be corrupted');
+        console.warn('⚠️ Model file seems too small');
       }
 
       // Load ONNX session
       console.log('🧠 Initializing ONNX session...');
-      const newSession = await InferenceSession.create(destPath);
+      const newSession = await InferenceSession.create(destPath, {
+        executionProviders: ['cpu'],
+        graphOptimizationLevel: 'basic', // 'all' yerine 'basic'
+        enableCpuMemArena: false, // Memory hatası için false
+        enableMemPattern: false,
+      });
 
-      setSession(newSession);
+      sessionRef.current = newSession;
+      setModelLoaded(true);
       console.log('✅ Model loaded successfully from assets');
 
       return newSession;
@@ -85,8 +90,15 @@ export const ModelProvider = ({ children }) => {
         'MB',
       );
 
-      const newSession = await InferenceSession.create(modelPath);
-      setSession(newSession);
+      const newSession = await InferenceSession.create(modelPath, {
+        executionProviders: ['cpu'],
+        graphOptimizationLevel: 'basic',
+        enableCpuMemArena: false,
+        enableMemPattern: false,
+      });
+
+      sessionRef.current = newSession;
+      setModelLoaded(true);
 
       console.log('✅ Model loaded successfully from path');
       return newSession;
@@ -98,6 +110,12 @@ export const ModelProvider = ({ children }) => {
 
   // Vocab yükleme
   const loadVocab = async () => {
+    // ✅ Eğer vocab zaten yüklüyse tekrar yükleme
+    if (vocab && reverseVocab) {
+      console.log('✅ Vocab already loaded, skipping...');
+      return vocab;
+    }
+
     try {
       console.log('📖 Loading vocabulary...');
 
@@ -105,7 +123,15 @@ export const ModelProvider = ({ children }) => {
       const vocabContent = await RNFS.readFileAssets(vocabPath, 'utf8');
       const vocabData = JSON.parse(vocabContent);
 
+      // Reverse vocab oluştur
+      const reverse = {};
+      for (const [token, id] of Object.entries(vocabData)) {
+        reverse[id] = token;
+      }
+
       setVocab(vocabData);
+      setReverseVocab(reverse);
+
       console.log('✅ Vocabulary loaded successfully');
       console.log(
         '📊 Vocabulary size:',
@@ -123,8 +149,15 @@ export const ModelProvider = ({ children }) => {
         const vocabContent = await RNFS.readFile(fallbackPath, 'utf8');
         const vocabData = JSON.parse(vocabContent);
 
+        const reverse = {};
+        for (const [token, id] of Object.entries(vocabData)) {
+          reverse[id] = token;
+        }
+
         setVocab(vocabData);
-        console.log('✅ Vocabulary loaded from fallback location');
+        setReverseVocab(reverse);
+
+        console.log('✅ Vocabulary loaded from fallback');
         return vocabData;
       } catch (fallbackError) {
         console.error('❌ Fallback vocabulary loading failed:', fallbackError);
@@ -133,8 +166,14 @@ export const ModelProvider = ({ children }) => {
     }
   };
 
-  // Generic model loader - önce assets'e bakar, sonra downloaded
+  // Generic model loader
   const loadModel = async (modelPath = null) => {
+    // ✅ Eğer model zaten yüklüyse tekrar yükleme
+    if (modelLoaded && sessionRef.current) {
+      console.log('✅ Model already loaded, skipping...');
+      return sessionRef.current;
+    }
+
     if (isLoading) {
       console.log('⏳ Model is already loading...');
       return null;
@@ -146,11 +185,9 @@ export const ModelProvider = ({ children }) => {
       let loadedSession;
 
       if (modelPath) {
-        // Belirli bir path verilmişse oradan yükle
         console.log('📂 Loading from specified path:', modelPath);
         loadedSession = await loadModelFromPath(modelPath);
       } else {
-        // Önce assets'e bak
         console.log('📦 Attempting to load from assets...');
         try {
           loadedSession = await loadModelFromAssets();
@@ -159,7 +196,6 @@ export const ModelProvider = ({ children }) => {
             '⚠️ Assets loading failed, checking DocumentDirectory...',
           );
 
-          // Assets'te yoksa DocumentDirectory'de ara
           const downloadedPath = `${RNFS.DocumentDirectoryPath}/model.onnx`;
           const exists = await RNFS.exists(downloadedPath);
 
@@ -167,28 +203,24 @@ export const ModelProvider = ({ children }) => {
             console.log('📂 Found model in DocumentDirectory');
             loadedSession = await loadModelFromPath(downloadedPath);
           } else {
-            throw new Error(
-              'Model file not found in assets or DocumentDirectory. ' +
-                'Please download the model or place it in the assets folder.',
-            );
+            throw new Error('Model file not found. Please download the model.');
           }
         }
       }
 
-      setIsReady(true);
       console.log('✅ Model is ready for inference');
-
       return loadedSession;
     } catch (error) {
       console.error('❌ Failed to load model:', error);
-      setIsReady(false);
+      setModelLoaded(false);
 
       Alert.alert(
         'Model Loading Error',
         `Failed to load AI model: ${error.message}\n\n` +
-          'Please ensure:\n' +
-          '1. Model file is in assets folder, OR\n' +
-          '2. Model has been downloaded successfully',
+          'Please try:\n' +
+          '1. Restart the app\n' +
+          '2. Re-download the model\n' +
+          '3. Check available storage space',
       );
 
       throw error;
@@ -197,34 +229,18 @@ export const ModelProvider = ({ children }) => {
     }
   };
 
-  // Model inference
-  const runInference = async inputTensor => {
-    if (!session) {
-      throw new Error('Model not loaded. Please load the model first.');
-    }
-
-    try {
-      console.log('🔮 Running inference...');
-      const feeds = { input: inputTensor };
-      const results = await session.run(feeds);
-      console.log('✅ Inference completed');
-      return results;
-    } catch (error) {
-      console.error('❌ Inference error:', error);
-      throw error;
-    }
-  };
-
   const value = {
-    session,
+    sessionRef, // ✅ ChatLogic sessionRef bekliyor
+    session: sessionRef.current, // Backward compatibility
     vocab,
+    reverseVocab,
     isLoading,
-    isReady,
+    modelLoaded, // ✅ ChatLogic modelLoaded bekliyor
+    isReady: modelLoaded, // Backward compatibility
     loadModel,
     loadVocab,
     loadModelFromAssets,
     loadModelFromPath,
-    runInference,
   };
 
   return (
