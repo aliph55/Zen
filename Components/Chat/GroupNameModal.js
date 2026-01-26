@@ -1,6 +1,5 @@
 import React from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity } from 'react-native';
-import Icon from 'react-native-vector-icons/Feather';
 import styles from './styles';
 
 const GroupNameModal = ({
@@ -11,46 +10,28 @@ const GroupNameModal = ({
   updateGroupName,
 }) => {
   return (
-    <Modal
-      visible={isGroupNameModalVisible}
-      transparent
-      animationType="fade"
-      onRequestClose={() => setGroupNameModalVisible(false)}
-    >
+    <Modal visible={isGroupNameModalVisible} transparent animationType="slide">
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Icon name="edit-2" size={24} color="#6366F1" />
-            <Text style={styles.modalTitle}>Rename Chat</Text>
-          </View>
-
+          <Text style={styles.modalTitle}>Grup Adını Düzenle</Text>
           <TextInput
             style={styles.modalInput}
-            placeholder="Enter chat name..."
-            placeholderTextColor="#64748B"
             value={newGroupName}
             onChangeText={setNewGroupName}
-            autoFocus
+            placeholder="Yeni grup adı..."
           />
-
           <View style={styles.modalButtons}>
             <TouchableOpacity
               style={styles.modalButton}
-              onPress={() => {
-                setGroupNameModalVisible(false);
-                setNewGroupName('');
-              }}
-              activeOpacity={0.8}
+              onPress={() => setGroupNameModalVisible(false)}
             >
-              <Text style={styles.modalButtonText}>Cancel</Text>
+              <Text style={styles.modalButtonText}>İptal</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.modalButton, styles.modalButtonSave]}
               onPress={updateGroupName}
-              activeOpacity={0.8}
             >
-              <Text style={styles.modalButtonSaveText}>Save</Text>
+              <Text style={styles.modalButtonText}>Kaydet</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text } from 'react-native';
 import styles from './styles';
 
-const MessageBubble = ({ message, formatTime }) => (
+const MessageBubble = ({ message }) => (
   <View
     style={[
       styles.messageBubble,
@@ -14,11 +14,8 @@ const MessageBubble = ({ message, formatTime }) => (
     >
       {message.text}
     </Text>
-    {/* ✅ FIX: Use formatTime function instead of raw object */}
     <Text style={styles.timestamp}>
-      {formatTime
-        ? formatTime(message.timestamp)
-        : new Date(message.timestamp).toLocaleTimeString()}
+      {message.timestamp.toLocaleTimeString('tr-TR')}
     </Text>
   </View>
 );

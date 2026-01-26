@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
-import Icon from 'react-native-vector-icons/Feather';
 import styles from './styles';
 
 const StreamingMessage = ({
@@ -9,7 +8,6 @@ const StreamingMessage = ({
   streamingComplete,
 }) => {
   if (!isStreaming) return null;
-
   return (
     <View
       style={[styles.messageBubble, styles.aiBubble, styles.streamingBubble]}
@@ -20,8 +18,8 @@ const StreamingMessage = ({
       </Text>
       {streamingComplete && (
         <View style={styles.streamingComplete}>
-          <ActivityIndicator size="small" color="#6366F1" />
-          <Text style={styles.completingText}>Finalizing...</Text>
+          <ActivityIndicator size="small" color="#007AFF" />
+          <Text style={styles.completingText}>Tamamlanıyor...</Text>
         </View>
       )}
     </View>
