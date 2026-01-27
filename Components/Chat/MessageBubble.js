@@ -15,7 +15,11 @@ const MessageBubble = ({ message }) => (
       {message.text}
     </Text>
     <Text style={styles.timestamp}>
-      {message.timestamp.toLocaleTimeString('tr-TR')}
+      {message.timestamp.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      })}
     </Text>
   </View>
 );

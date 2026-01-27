@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import * as ort from 'onnxruntime-react-native'; // ✅ ort import edildi
+import * as ort from 'onnxruntime-react-native';
 import RNFS from 'react-native-fs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, Platform } from 'react-native'; // ✅ Alert ve Platform import edildi
+import { Alert } from 'react-native';
 import { showRewardedAd } from '../adsService';
 import { useModel } from '../../contexts/ModelContext';
 
 export const useChatLogic = ({ route, navigation }) => {
   const { groupId, chatId } = route.params || {};
 
-  // ✅ ModelContext'ten model bilgilerini al
   const { sessionRef, vocab, reverseVocab, modelLoaded, loadVocab } =
     useModel();
 
@@ -37,16 +36,16 @@ export const useChatLogic = ({ route, navigation }) => {
 
   const testAsyncStorage = async () => {
     try {
-      const testData = { test: 'Merhaba, dünya!' };
+      const testData = { test: 'Hello, world!' };
       await AsyncStorage.setItem('testKey', JSON.stringify(testData));
       const result = await AsyncStorage.getItem('testKey');
       console.log(
-        'AsyncStorage testi başarılı, alınan veri:',
+        'AsyncStorage test successful, retrieved data:',
         JSON.parse(result),
       );
     } catch (error) {
-      console.error('AsyncStorage test hatası:', error);
-      Alert.alert('Hata', `AsyncStorage testi başarısız: ${error.message}`);
+      console.error('AsyncStorage test error:', error);
+      Alert.alert('Error', `AsyncStorage test failed: ${error.message}`);
     }
   };
 
@@ -58,18 +57,16 @@ export const useChatLogic = ({ route, navigation }) => {
         const data = await AsyncStorage.getItem(key);
         totalSize += ((data?.length || 0) * 2) / 1024;
       }
-      console.log(
-        `AsyncStorage kullanılan toplam boyut: ${totalSize.toFixed(2)} KB`,
-      );
+      console.log(`AsyncStorage total size used: ${totalSize.toFixed(2)} KB`);
       if (totalSize > 5000) {
         Alert.alert(
-          'Uyarı',
-          'Depolama alanı dolmak üzere, eski sohbetler temizleniyor...',
+          'Warning',
+          'Storage space is almost full, clearing old chats...',
         );
         await clearOldChats();
       }
     } catch (error) {
-      console.error('Depolama boyutu kontrol hatası:', error);
+      console.error('Storage size check error:', error);
     }
   };
 
@@ -88,18 +85,18 @@ export const useChatLogic = ({ route, navigation }) => {
         }));
         await AsyncStorage.setItem('groups', JSON.stringify(updatedGroups));
         setGroups(updatedGroups);
-        console.log('Eski sohbetler temizlendi');
+        console.log('Old chats cleared');
       }
     } catch (error) {
-      console.error('Eski sohbetleri temizleme hatası:', error);
-      Alert.alert('Hata', `Eski sohbetler temizlenemedi: ${error.message}`);
+      console.error('Error clearing old chats:', error);
+      Alert.alert('Error', `Failed to clear old chats: ${error.message}`);
     }
   };
 
   const saveGroups = useCallback(async groupsToSave => {
     try {
       console.log(
-        'saveGroups çağrıldı, kaydedilecek gruplar:',
+        'saveGroups called, groups to save:',
         JSON.stringify(groupsToSave, null, 2),
       );
       const serializedGroups = groupsToSave.map(g => ({
@@ -124,21 +121,21 @@ export const useChatLogic = ({ route, navigation }) => {
         })),
       }));
       const jsonString = JSON.stringify(serializedGroups);
-      console.log('Serileştirilmiş veri uzunluğu:', jsonString.length);
+      console.log('Serialized data length:', jsonString.length);
       await AsyncStorage.setItem('groups', jsonString);
-      console.log("✅ Gruplar başarıyla AsyncStorage'a kaydedildi");
+      console.log('✅ Groups successfully saved to AsyncStorage');
       const verification = await AsyncStorage.getItem('groups');
       if (verification) {
         console.log(
-          '✅ Doğrulama: Veriler başarıyla okundu, uzunluk:',
+          '✅ Verification: Data successfully read, length:',
           verification.length,
         );
       } else {
-        console.error('❌ Doğrulama hatası: Veriler okunamadı!');
+        console.error('❌ Verification error: Data could not be read!');
       }
     } catch (error) {
-      console.error('❌ Gruplar kaydetme hatası:', error);
-      Alert.alert('Hata', `Gruplar kaydedilemedi: ${error.message}`);
+      console.error('❌ Error saving groups:', error);
+      Alert.alert('Error', `Failed to save groups: ${error.message}`);
     }
   }, []);
 
@@ -156,13 +153,13 @@ export const useChatLogic = ({ route, navigation }) => {
 
   const loadGroups = async () => {
     try {
-      console.log("loadGroups çağrıldı, AsyncStorage'dan okuma başlıyor...", {
+      console.log('loadGroups called, reading from AsyncStorage...', {
         groupId,
         chatId,
       });
       const savedGroups = await AsyncStorage.getItem('groups');
       console.log(
-        "AsyncStorage'dan alınan ham veri:",
+        'Raw data from AsyncStorage:',
         savedGroups ? savedGroups.substring(0, 200) + '...' : 'null',
       );
       if (savedGroups) {
@@ -231,10 +228,10 @@ export const useChatLogic = ({ route, navigation }) => {
           createNewChatIfNeeded();
         }
       } else {
-        console.log('AsyncStorage boş, yeni default grup oluşturuluyor...');
+        console.log('AsyncStorage is empty, creating new default group...');
         const defaultGroup = {
           id: Date.now().toString(),
-          name: 'Genel',
+          name: 'General',
           chats: [],
         };
         setGroups([defaultGroup]);
@@ -244,8 +241,8 @@ export const useChatLogic = ({ route, navigation }) => {
         createNewChatIfNeeded();
       }
     } catch (error) {
-      console.error('❌ Gruplar yükleme hatası:', error);
-      Alert.alert('Hata', `Gruplar yüklenemedi: ${error.message}`);
+      console.error('❌ Error loading groups:', error);
+      Alert.alert('Error', `Failed to load groups: ${error.message}`);
     }
   };
 
@@ -277,7 +274,7 @@ export const useChatLogic = ({ route, navigation }) => {
       }
       return {
         id: currentChatId,
-        title: currentTitle || 'Sohbet',
+        title: currentTitle || 'Chat',
         startDate: startDate || new Date(),
         lastOpened: new Date(),
         messages: currentMessages,
@@ -305,11 +302,11 @@ export const useChatLogic = ({ route, navigation }) => {
     const newChatId = (Date.now() + 1).toString();
     const newGroup = {
       id: newGroupId,
-      name: 'Genel',
+      name: 'General',
       chats: [
         {
           id: newChatId,
-          title: 'Sohbet',
+          title: 'Chat',
           startDate: new Date(),
           lastOpened: new Date(),
           messages: [],
@@ -322,7 +319,7 @@ export const useChatLogic = ({ route, navigation }) => {
     setCurrentGroupName(newGroup.name);
     setMessages([]);
     setCurrentChatId(newChatId);
-    setTitle('Sohbet');
+    setTitle('Chat');
     setStartDate(new Date());
     setLastOpened(new Date());
     saveGroups(newGroups);
@@ -348,7 +345,7 @@ export const useChatLogic = ({ route, navigation }) => {
     const newChatId = Date.now().toString();
     const newChat = {
       id: newChatId,
-      title: 'Sohbet',
+      title: 'Chat',
       startDate: new Date(),
       lastOpened: new Date(),
       messages: [],
@@ -383,7 +380,7 @@ export const useChatLogic = ({ route, navigation }) => {
         newGroupId = Date.now().toString();
         const newGroup = {
           id: newGroupId,
-          name: 'Genel',
+          name: 'General',
           chats: [],
         };
         newGroups = [newGroup];
@@ -397,7 +394,7 @@ export const useChatLogic = ({ route, navigation }) => {
         newChatId = Date.now().toString();
         const newChat = {
           id: newChatId,
-          title: 'Sohbet',
+          title: 'Chat',
           startDate: new Date(),
           lastOpened: new Date(),
           messages: [],
@@ -435,7 +432,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
   const updateGroupName = () => {
     if (!newGroupName.trim()) {
-      Alert.alert('Hata', 'Grup adı boş olamaz.');
+      Alert.alert('Error', 'Group name cannot be empty.');
       return;
     }
     const newGroups = groups.map(g =>
@@ -450,7 +447,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
   const tokenize = async text => {
     if (!vocab) {
-      console.warn('Vocab henüz yüklenmedi');
+      console.warn('Vocab not loaded yet');
       return [50256];
     }
     let processedText = text.trim();
@@ -491,7 +488,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
   const generateStreamingResponse = async prompt => {
     if (!sessionRef.current) {
-      const mockResponse = 'Model henüz yüklenmedi. Bu bir test mesajıdır.';
+      const mockResponse = 'Model not loaded yet. This is a test message.';
       const words = mockResponse.split(' ');
       setCurrentStreamingMessage('');
       setIsStreaming(true);
@@ -506,7 +503,7 @@ export const useChatLogic = ({ route, navigation }) => {
       return mockResponse;
     }
     try {
-      const tokens = await tokenize(prompt || 'Merhaba');
+      const tokens = await tokenize(prompt || 'Hello');
       let currentInputIds = tokens.slice(0, 100);
       const maxNewTokens = 30;
       const temperature = 0.7;
@@ -707,7 +704,7 @@ export const useChatLogic = ({ route, navigation }) => {
         .join('')
         .trim()
         .replace(/\s+/g, ' ');
-      if (!finalResponse) finalResponse = 'Model kısa yanıt üretti.';
+      if (!finalResponse) finalResponse = 'Model generated a short response.';
       setCurrentStreamingMessage(finalResponse);
       await new Promise(resolve => setTimeout(resolve, 500));
       setIsStreaming(false);
@@ -716,14 +713,16 @@ export const useChatLogic = ({ route, navigation }) => {
       console.error('Generation error:', error);
       setStreamingComplete(true);
       setIsStreaming(false);
-      return 'Üzgünüm, yanıt oluştururken bir hata oluştu: ' + error.message;
+      return (
+        'Sorry, an error occurred while generating response: ' + error.message
+      );
     }
   };
 
   const sendMessage = async () => {
     if (!inputText.trim() || isLoading || isStreaming) return;
     if (!modelLoaded) {
-      Alert.alert('Uyarı', 'Model henüz yüklenmedi. Lütfen bekleyin.');
+      Alert.alert('Warning', 'Model not loaded yet. Please wait.');
       return;
     }
     console.log('📩 sendMessage: Starting with', {
@@ -738,11 +737,11 @@ export const useChatLogic = ({ route, navigation }) => {
         currentGroupId,
         currentChatId,
       });
-      Alert.alert('Hata', 'Grup veya sohbet ID eksik.');
+      Alert.alert('Error', 'Group or chat ID is missing.');
       return;
     }
     const userMessage = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-user`,
       text: inputText,
       sender: 'user',
       timestamp: new Date(),
@@ -756,7 +755,7 @@ export const useChatLogic = ({ route, navigation }) => {
           trimmedInput.length > 0
             ? trimmedInput.slice(0, 50) +
               (trimmedInput.length > 50 ? '...' : '')
-            : 'Sohbet';
+            : 'Chat';
         setTitle(newTitle);
       }
       setGroups(prevGroups => {
@@ -796,7 +795,7 @@ export const useChatLogic = ({ route, navigation }) => {
         return updatedGroups;
       });
       setInputText('');
-      streamingMessageId.current = (Date.now() + 1).toString();
+      streamingMessageId.current = `${Date.now()}-ai`;
       generateStreamingResponse(inputText)
         .then(response => {
           const finalMessageText = currentStreamingMessage.trim() || response;
@@ -839,7 +838,7 @@ export const useChatLogic = ({ route, navigation }) => {
         })
         .catch(error => {
           console.error('❌ sendMessage: Error generating response:', error);
-          Alert.alert('Hata', 'Yanıt oluşturulurken bir hata oluştu.');
+          Alert.alert('Error', 'An error occurred while generating response.');
           setIsStreaming(false);
           setCurrentStreamingMessage('');
         });
@@ -849,7 +848,7 @@ export const useChatLogic = ({ route, navigation }) => {
 
   const onTimerEnd = () => {
     setSeconds(420);
-    console.log('Reklam gösteriliyor...');
+    console.log('Showing ad...');
     showRewardedAd();
   };
 

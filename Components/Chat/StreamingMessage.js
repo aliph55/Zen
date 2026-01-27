@@ -18,8 +18,8 @@ const StreamingMessage = ({
       </Text>
       {streamingComplete && (
         <View style={styles.streamingComplete}>
-          <ActivityIndicator size="small" color="#007AFF" />
-          <Text style={styles.completingText}>Tamamlanıyor...</Text>
+          <ActivityIndicator size="small" color="#3b82f6" />
+          <Text style={styles.completingText}>Finishing up...</Text>
         </View>
       )}
     </View>
