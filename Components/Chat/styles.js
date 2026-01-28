@@ -1,6 +1,79 @@
 import { StyleSheet, Platform } from 'react-native';
 
 export default StyleSheet.create({
+  // Navigation header stilleri
+  navigationHeaderTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  navigationTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#f8fafc',
+  },
+  navigationTime: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '500',
+  },
+  navigationAdWarning: {
+    backgroundColor: '#dc2626',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  navigationAdWarningText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  navigationHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginRight: 8,
+  },
+  navigationStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#334155',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  navigationStatusBadgeError: {
+    backgroundColor: '#7f1d1d',
+  },
+  navigationStatusDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  navigationStatusDotActive: {
+    backgroundColor: '#10b981',
+  },
+  navigationStatusDotError: {
+    backgroundColor: '#ef4444',
+  },
+  navigationStatusText: {
+    color: '#e2e8f0',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  navigationNewButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  navigationNewButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   container: {
     flex: 1,
     backgroundColor: '#0f172a',
@@ -8,8 +81,8 @@ export default StyleSheet.create({
   header: {
     backgroundColor: '#1e293b',
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
-    paddingBottom: 20,
-    paddingHorizontal: 24,
+    paddingBottom: 15, // 20'den 15'e düşürdüm
+    paddingHorizontal: 16, // 24'ten 16'ya düşürdüm - daha kompakt
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -18,24 +91,22 @@ export default StyleSheet.create({
   },
   headerLeft: {
     flex: 1,
+    flexDirection: 'row', // Yan yana dizmek için
+    alignItems: 'center',
+    gap: 10, // Aralarındaki boşluk
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 18, // 24'ten 18'e küçülttüm
     fontWeight: '700',
     color: '#f8fafc',
     letterSpacing: -0.5,
-  },
-  timeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 8,
   },
   headerSubtitle: {
     fontSize: 13,
     color: '#94a3b8',
     fontWeight: '500',
   },
+
   adWarningBadge: {
     backgroundColor: '#dc2626',
     paddingHorizontal: 8,

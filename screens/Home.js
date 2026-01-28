@@ -37,69 +37,93 @@ const Home = ({ navigation }) => {
 
   const loadRecentChats = async () => {
     try {
-      const saved = await AsyncStorage.getItem('chatGroups');
-      if (!saved) {
+      const savedGroups = await AsyncStorage.getItem('groups');
+      if (!savedGroups) {
         setRecentChats([]);
         return;
       }
-      const groups = JSON.parse(saved);
-      const chats = groups
-        .map(group => {
-          // ✅ Get last AI message for preview
-          const lastMessage =
-            group.messages && group.messages.length > 0
-              ? group.messages[group.messages.length - 1]
-              : null;
 
-          // ✅ Show AI response preview (first 50 chars)
-          const preview =
-            lastMessage && lastMessage.sender === 'ai'
-              ? lastMessage.text.slice(0, 50) +
-                (lastMessage.text.length > 50 ? '...' : '')
-              : lastMessage && lastMessage.sender === 'user'
-              ? `You: ${lastMessage.text.slice(0, 40)}...`
-              : 'Start a conversation';
+      const parsedGroups = JSON.parse(savedGroups);
 
-          return {
-            id: group.id,
-            title: group.name || 'New Chat',
-            preview: preview,
-            time: lastMessage
-              ? new Date(lastMessage.timestamp).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-              : '',
-            date: group.timestamp,
-            groupId: group.id,
-          };
-        })
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
+      // Get all chats from all groups
+      const allChats = parsedGroups
+        .flatMap(group =>
+          group.chats.map(chat => {
+            // Get last message for preview
+            const lastMessage =
+              chat.messages && chat.messages.length > 0
+                ? chat.messages[chat.messages.length - 1]
+                : null;
+
+            // Show AI response preview (first 50 chars)
+            const preview =
+              lastMessage && lastMessage.sender === 'ai'
+                ? lastMessage.text.slice(0, 50) +
+                  (lastMessage.text.length > 50 ? '...' : '')
+                : lastMessage && lastMessage.sender === 'user'
+                ? `You: ${lastMessage.text.slice(0, 40)}...`
+                : 'Start a conversation';
+
+            return {
+              id: chat.id,
+              title: chat.title || 'New Chat',
+              preview: preview,
+              time: lastMessage
+                ? new Date(lastMessage.timestamp).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : '',
+              lastOpened: chat.lastOpened,
+              groupId: group.id,
+              chatId: chat.id,
+            };
+          }),
+        )
+        .sort((a, b) => new Date(b.lastOpened) - new Date(a.lastOpened))
         .slice(0, 6);
 
-      setRecentChats(chats);
+      setRecentChats(allChats);
     } catch (e) {
       console.error('Error loading chats:', e);
     }
   };
 
   const startNewChat = async () => {
-    const newGroup = {
-      id: Date.now().toString(),
-      name: 'New Chat',
-      messages: [],
-      timestamp: new Date().toISOString(),
-    };
-
     try {
-      const existing = await AsyncStorage.getItem('chatGroups');
-      const groups = existing ? JSON.parse(existing) : [];
-      await AsyncStorage.setItem(
-        'chatGroups',
-        JSON.stringify([newGroup, ...groups]),
+      const savedGroups = await AsyncStorage.getItem('groups');
+      let groups = savedGroups ? JSON.parse(savedGroups) : [];
+
+      let defaultGroup = groups.find(g => g.name === 'General');
+
+      if (!defaultGroup) {
+        defaultGroup = {
+          id: Date.now().toString(),
+          name: 'General',
+          chats: [],
+        };
+        groups.push(defaultGroup);
+      }
+
+      const newChatId = Date.now().toString();
+      const newChat = {
+        id: newChatId,
+        title: 'New Chat',
+        startDate: new Date().toISOString(),
+        lastOpened: new Date().toISOString(),
+        messages: [],
+      };
+
+      groups = groups.map(g =>
+        g.id === defaultGroup.id ? { ...g, chats: [...g.chats, newChat] } : g,
       );
+
+      await AsyncStorage.setItem('groups', JSON.stringify(groups));
       loadRecentChats();
-      navigation.navigate('Chat', { groupId: newGroup.id });
+      navigation.navigate('Chat', {
+        groupId: defaultGroup.id,
+        chatId: newChatId,
+      });
     } catch (e) {
       console.error('Error creating new chat:', e);
     }
@@ -207,60 +231,6 @@ const Home = ({ navigation }) => {
           </LinearGradient>
         </Animated.View>
 
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionGrid}>
-            <TouchableOpacity
-              style={styles.actionCard}
-              activeOpacity={0.8}
-              onPress={startNewChat}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
-                <Icon name="edit-3" size={22} color="#6366F1" />
-              </View>
-              <Text style={styles.actionTitle}>Write</Text>
-              <Text style={styles.actionSubtitle}>Create content</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionCard}
-              activeOpacity={0.8}
-              onPress={startNewChat}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#F0FDF4' }]}>
-                <Icon name="help-circle" size={22} color="#22C55E" />
-              </View>
-              <Text style={styles.actionTitle}>Ask</Text>
-              <Text style={styles.actionSubtitle}>Get answers</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionCard}
-              activeOpacity={0.8}
-              onPress={startNewChat}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#FEF3C7' }]}>
-                <Icon name="lightbulb" size={22} color="#F59E0B" />
-              </View>
-              <Text style={styles.actionTitle}>Ideas</Text>
-              <Text style={styles.actionSubtitle}>Brainstorm</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.actionCard}
-              activeOpacity={0.8}
-              onPress={startNewChat}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#FEE2E2' }]}>
-                <Icon name="code" size={22} color="#EF4444" />
-              </View>
-              <Text style={styles.actionTitle}>Code</Text>
-              <Text style={styles.actionSubtitle}>Programming</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Recent Chats */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -304,6 +274,7 @@ const Home = ({ navigation }) => {
                   onPress={() =>
                     navigation.navigate('Chat', {
                       groupId: chat.groupId,
+                      chatId: chat.chatId,
                     })
                   }
                 >
@@ -342,13 +313,21 @@ const Home = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Floating Bottom Navigation */}
+      {/* Bottom Navigation */}
       <View style={styles.bottomNavContainer}>
         <View style={styles.bottomNav}>
           <TouchableOpacity style={styles.navItemActive} activeOpacity={0.8}>
-            <View style={styles.navActiveIndicator} />
             <Icon name="home" size={24} color="#6366F1" />
             <Text style={styles.navLabelActive}>Home</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={startNewChat}
+            activeOpacity={0.8}
+          >
+            <Icon name="plus-circle" size={24} color="#64748B" />
+            <Text style={styles.navLabel}>New Chat</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -358,28 +337,6 @@ const Home = ({ navigation }) => {
           >
             <Icon name="clock" size={24} color="#64748B" />
             <Text style={styles.navLabel}>History</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.navCenterButton}
-            onPress={startNewChat}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={['#6366F1', '#8B5CF6']}
-              style={styles.centerButtonGradient}
-            >
-              <Icon name="plus" size={28} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => navigation.navigate('Settings')}
-            activeOpacity={0.8}
-          >
-            <Icon name="settings" size={24} color="#64748B" />
-            <Text style={styles.navLabel}>Settings</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -757,13 +714,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: 20,
+    backgroundColor: 'transparent',
   },
   bottomNav: {
     flexDirection: 'row',
     backgroundColor: '#1E293B',
-    borderRadius: 28,
+    borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 8,
     alignItems: 'center',
@@ -782,24 +740,17 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     gap: 4,
+    flex: 1,
   },
   navItemActive: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
+    gap: 4,
+    flex: 1,
     backgroundColor: '#334155',
     borderRadius: 16,
-    gap: 4,
-    position: 'relative',
-  },
-  navActiveIndicator: {
-    position: 'absolute',
-    top: -2,
-    width: 24,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: '#6366F1',
   },
   navLabel: {
     fontSize: 11,
@@ -810,25 +761,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6366F1',
     fontWeight: '700',
-  },
-  navCenterButton: {
-    width: 64,
-    height: 64,
-    marginTop: -32,
-  },
-  centerButtonGradient: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 10,
-    borderWidth: 4,
-    borderColor: '#0F172A',
   },
 });
 export default Home;

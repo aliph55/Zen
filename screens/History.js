@@ -29,16 +29,39 @@ const History = ({ navigation }) => {
       const parsedGroups = JSON.parse(savedGroups);
       const allChats = parsedGroups
         .flatMap(group =>
-          group.chats.map(chat => ({
-            id: chat.id,
-            title: chat.title || 'New Chat',
-            preview: chat.messages[0]?.text?.slice(0, 60) || 'No messages yet',
-            time: formatDate(chat.lastOpened),
-            groupId: group.id,
-            messageCount: chat.messages.length,
-          })),
+          group.chats.map(chat => {
+            // Get the last message for preview
+            const lastMessage =
+              chat.messages && chat.messages.length > 0
+                ? chat.messages[chat.messages.length - 1]
+                : null;
+
+            // Create preview based on last message
+            let preview = 'No messages yet';
+            if (lastMessage) {
+              if (lastMessage.sender === 'ai') {
+                preview =
+                  lastMessage.text.slice(0, 60) +
+                  (lastMessage.text.length > 60 ? '...' : '');
+              } else if (lastMessage.sender === 'user') {
+                preview = `You: ${lastMessage.text.slice(0, 50)}${
+                  lastMessage.text.length > 50 ? '...' : ''
+                }`;
+              }
+            }
+
+            return {
+              id: chat.id,
+              title: chat.title || 'New Chat',
+              preview: preview,
+              time: formatDate(chat.lastOpened),
+              lastOpened: chat.lastOpened, // Keep raw date for sorting
+              groupId: group.id,
+              messageCount: chat.messages ? chat.messages.length : 0,
+            };
+          }),
         )
-        .sort((a, b) => new Date(b.time) - new Date(a.time));
+        .sort((a, b) => new Date(b.lastOpened) - new Date(a.lastOpened));
 
       setChats(allChats);
     } catch (error) {
@@ -47,6 +70,8 @@ const History = ({ navigation }) => {
   };
 
   const formatDate = isoString => {
+    if (!isoString) return 'recently';
+
     const date = new Date(isoString);
     const now = new Date();
     const diffMs = now - date;
@@ -79,10 +104,12 @@ const History = ({ navigation }) => {
                 : g,
             );
 
+            // Remove groups with no chats
             groups = groups.filter(g => g.chats.length > 0);
             await AsyncStorage.setItem('groups', JSON.stringify(groups));
             setChats(prev => prev.filter(c => c.id !== chatId));
           } catch (err) {
+            console.error('Failed to delete chat:', err);
             Alert.alert('Error', 'Chat could not be deleted.');
           }
         },
@@ -91,34 +118,52 @@ const History = ({ navigation }) => {
   };
 
   const startNewChat = async () => {
-    const newGroupId = Date.now().toString();
-    const newChatId = (Date.now() + 1).toString();
-
-    const newGroup = {
-      id: newGroupId,
-      name: 'General',
-      chats: [
-        {
-          id: newChatId,
-          title: 'New Chat',
-          startDate: new Date().toISOString(),
-          lastOpened: new Date().toISOString(),
-          messages: [],
-        },
-      ],
-    };
-
     try {
       const existing = await AsyncStorage.getItem('groups');
-      const groups = existing ? JSON.parse(existing) : [];
-      await AsyncStorage.setItem(
-        'groups',
-        JSON.stringify([...groups, newGroup]),
-      );
-      loadChats();
-      navigation.navigate('Chat', { groupId: newGroupId, chatId: newChatId });
+      let groups = existing ? JSON.parse(existing) : [];
+
+      // Find or create General group
+      let generalGroup = groups.find(g => g.name === 'General');
+
+      const newChatId = Date.now().toString();
+      const newChat = {
+        id: newChatId,
+        title: 'New Chat',
+        startDate: new Date().toISOString(),
+        lastOpened: new Date().toISOString(),
+        messages: [],
+      };
+
+      if (generalGroup) {
+        // Add to existing General group
+        groups = groups.map(g =>
+          g.id === generalGroup.id ? { ...g, chats: [...g.chats, newChat] } : g,
+        );
+        await AsyncStorage.setItem('groups', JSON.stringify(groups));
+        loadChats();
+        navigation.navigate('Chat', {
+          groupId: generalGroup.id,
+          chatId: newChatId,
+        });
+      } else {
+        // Create new General group
+        const newGroupId = Date.now().toString();
+        const newGroup = {
+          id: newGroupId,
+          name: 'General',
+          chats: [newChat],
+        };
+        groups.push(newGroup);
+        await AsyncStorage.setItem('groups', JSON.stringify(groups));
+        loadChats();
+        navigation.navigate('Chat', {
+          groupId: newGroupId,
+          chatId: newChatId,
+        });
+      }
     } catch (err) {
       console.error('Failed to create new chat:', err);
+      Alert.alert('Error', 'Failed to create new chat.');
     }
   };
 

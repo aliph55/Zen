@@ -26,19 +26,18 @@ const ChatHeader = ({
 
   return (
     <View style={styles.header}>
+      {/* Sol taraf - Chat başlığı ile zaman ve uyarı yan yana */}
       <View style={styles.headerLeft}>
         <Text style={styles.headerTitle}>{title || 'Chat'}</Text>
-        <View style={styles.timeContainer}>
-          <Text style={styles.headerSubtitle}>{timeString}</Text>
-          {showAdWarning && (
-            <View style={styles.adWarningBadge}>
-              <Text style={styles.adWarningText}>
-                Ad in {remainingSeconds}s
-              </Text>
-            </View>
-          )}
-        </View>
+        <Text style={styles.headerSubtitle}>{timeString}</Text>
+        {showAdWarning && (
+          <View style={styles.adWarningBadge}>
+            <Text style={styles.adWarningText}>Ad in {remainingSeconds}s</Text>
+          </View>
+        )}
       </View>
+
+      {/* Sağ taraf - Status ve New button */}
       <View style={styles.headerRight}>
         {modelLoaded ? (
           <View style={styles.statusBadge}>

@@ -22,15 +22,23 @@ const App = () => {
       <ModelProvider>
         <AdsProvider>
           <NavigationContainer>
-            <Stack.Navigator
-              initialRouteName="Presentation"
-              screenOptions={{ headerShown: false }}
-            >
+            <Stack.Navigator initialRouteName="Presentation">
               {/* 1. İLK SAYFA: Presentation */}
-              <Stack.Screen name="Presentation" component={Presentation} />
+              <Stack.Screen
+                name="Presentation"
+                options={{
+                  headerShown: false,
+                }}
+                component={Presentation}
+              />
 
               {/* 2. İKİNCİ SAYFA: Download */}
-              <Stack.Screen name="Download">
+              <Stack.Screen
+                name="Download"
+                options={{
+                  headerShown: false,
+                }}
+              >
                 {({ navigation }) => (
                   <Download
                     onDownloadComplete={() => {
@@ -42,13 +50,75 @@ const App = () => {
               </Stack.Screen>
 
               {/* 3. ÜÇÜNCÜ SAYFA: Home */}
-              <Stack.Screen name="Home" component={Home} />
+              <Stack.Screen
+                name="Home"
+                options={{
+                  headerShown: false,
+                }}
+                component={Home}
+              />
 
               {/* DİĞER SAYFALAR */}
-              <Stack.Screen name="Signin" component={Signin} />
-              <Stack.Screen name="Profile" component={Profile} />
-              <Stack.Screen name="Chat" component={Chat} />
-              <Stack.Screen name="History" component={History} />
+              <Stack.Screen
+                name="Signin"
+                options={{
+                  headerShown: false,
+                }}
+                component={Signin}
+              />
+
+              {/* Profile - Themed Header */}
+              <Stack.Screen
+                name="Profile"
+                options={{
+                  headerStyle: {
+                    backgroundColor: '#0F172A',
+                  },
+                  headerTintColor: '#fff',
+                  headerTitleStyle: {
+                    fontWeight: '700',
+                    fontSize: 18,
+                  },
+                  headerShadowVisible: false,
+                }}
+                component={Profile}
+              />
+
+              {/* Chat - Themed Header */}
+              <Stack.Screen
+                name="Chat"
+                options={{
+                  headerStyle: {
+                    backgroundColor: '#0F172A',
+                  },
+                  headerTintColor: '#fff',
+                  headerTitleStyle: {
+                    fontWeight: '700',
+                    fontSize: 18,
+                  },
+                  headerShadowVisible: false,
+                  title: 'Chat',
+                }}
+                component={Chat}
+              />
+
+              {/* History - Header Hidden (has its own header) */}
+              <Stack.Screen
+                name="History"
+                options={{
+                  headerStyle: {
+                    backgroundColor: '#0F172A',
+                  },
+                  headerTintColor: '#fff',
+                  headerTitleStyle: {
+                    fontWeight: '700',
+                    fontSize: 18,
+                  },
+                  headerShadowVisible: false,
+                  title: 'History',
+                }}
+                component={History}
+              />
             </Stack.Navigator>
           </NavigationContainer>
         </AdsProvider>
