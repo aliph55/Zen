@@ -26,6 +26,7 @@ DerivedData
 #
 android/app/src/main/assets
 build/
+assets/
 .idea
 .gradle
 local.properties
