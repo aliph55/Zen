@@ -65,7 +65,7 @@ const Presentation = ({ navigation }) => {
       if (hasSeen === 'true') {
         // Daha önce görmüş, direkt Download'a git
         console.log('✅ User has seen presentation, going to Download');
-        navigation.replace('Signin');
+        navigation.replace('Download');
       } else {
         // İlk kez, slides'ı göster
         console.log('🆕 First time user, showing presentation');
@@ -98,7 +98,7 @@ const Presentation = ({ navigation }) => {
       await AsyncStorage.setItem('hasSeenPresentation', 'true');
       // Download sayfasına git
       console.log('🚀 Navigating to Download');
-      navigation.replace('Signin');
+      navigation.replace('Download');
     } catch (error) {
       console.error('❌ Save error:', error);
     }

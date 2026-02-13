@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TextInput, TouchableOpacity, Text, Alert } from 'react-native';
+import { View, TextInput, TouchableOpacity, Text } from 'react-native';
 import styles from './styles';
 
 const ChatInput = ({
@@ -22,6 +22,7 @@ const ChatInput = ({
         maxHeight={120}
         editable={modelLoaded && !isLoading && !isStreaming}
       />
+
       <TouchableOpacity
         style={[
           styles.sendButton,

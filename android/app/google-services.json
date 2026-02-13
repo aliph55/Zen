@@ -14,19 +14,27 @@
       },
       "oauth_client": [
         {
-          "client_id": "53852373022-e1hhtpn9s4scehpch49utt8rjpfs5p2j.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.zenai",
-            "certificate_hash": "7a8f500632f092549604cac5e911789c9fc854fc"
-          }
-        },
-        {
-          "client_id": "53852373022-jhk4ot91ch3l5musjqcn83bt4j4ls15n.apps.googleusercontent.com",
+          "client_id": "53852373022-1uiomhel0hfgqspk6ns9ak4m6vmvgimr.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.zenai",
             "certificate_hash": "140e21346a1ce320a4656572b68b875c33b4d98b"
+          }
+        },
+        {
+          "client_id": "53852373022-2rvqatkbd4q1is6ef2ftpj563lsoo4ro.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zenai",
+            "certificate_hash": "c79d4dc9d2d2ecd5270f882d16afcf2167d735fb"
+          }
+        },
+        {
+          "client_id": "53852373022-746lp90t4u8hasmn40ged78n5qbdlrsd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.zenai",
+            "certificate_hash": "7a8f500632f092549604cac5e911789c9fc854fc"
           }
         },
         {

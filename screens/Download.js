@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
+  ScrollView,
 } from 'react-native';
 import RNFS from 'react-native-fs';
 import { useModel } from '../contexts/ModelContext';
@@ -302,164 +303,167 @@ Or try downloading again with "Try Again" button.`;
   };
 
   return (
-    <View style={styles.container}>
-      {/* Animated Background Gradients */}
-      <View style={styles.bgGradient1} />
-      <View style={styles.bgGradient2} />
-      <View style={styles.bgGradient3} />
+    <ScrollView style={{ flex: 1 }}>
+      <View style={styles.container}>
+        {/* Animated Background Gradients */}
+        <View style={styles.bgGradient1} />
+        <View style={styles.bgGradient2} />
+        <View style={styles.bgGradient3} />
 
-      {/* Floating Particles */}
-      <View style={[styles.particle, styles.particle1]} />
-      <View style={[styles.particle, styles.particle2]} />
-      <View style={[styles.particle, styles.particle3]} />
+        {/* Floating Particles */}
+        <View style={[styles.particle, styles.particle1]} />
+        <View style={[styles.particle, styles.particle2]} />
+        <View style={[styles.particle, styles.particle3]} />
 
-      <View style={styles.card}>
-        {/* Header with Icon */}
-        <Animated.View
-          style={[
-            styles.headerContainer,
-            { transform: [{ scale: pulseAnim }] },
-          ]}
-        >
-          <View style={styles.iconWrapper}>
-            <View style={styles.iconGradient}>
-              <Text style={styles.iconText}>🧠</Text>
+        <View style={styles.card}>
+          {/* Header with Icon */}
+          <Animated.View
+            style={[
+              styles.headerContainer,
+              { transform: [{ scale: pulseAnim }] },
+            ]}
+          >
+            <View style={styles.iconWrapper}>
+              <View style={styles.iconGradient}>
+                <Text style={styles.iconText}>🧠</Text>
+              </View>
+              <View style={styles.iconRing1} />
+              <View style={styles.iconRing2} />
             </View>
-            <View style={styles.iconRing1} />
-            <View style={styles.iconRing2} />
-          </View>
-        </Animated.View>
+          </Animated.View>
 
-        <Text style={styles.title}>AI Model Setup</Text>
-        <Text style={styles.subtitle}>
-          Preparing your intelligent assistant
-        </Text>
+          <Text style={styles.title}>AI Model Setup</Text>
+          <Text style={styles.subtitle}>
+            Preparing your intelligent assistant
+          </Text>
 
-        {isDownloading ? (
-          <View style={styles.progressContainer}>
-            {/* Animated Loader */}
-            <View style={styles.loaderWrapper}>
-              <ActivityIndicator size="large" color="#818CF8" />
-              <View style={styles.loaderGlow} />
-            </View>
+          {isDownloading ? (
+            <View style={styles.progressContainer}>
+              {/* Animated Loader */}
+              <View style={styles.loaderWrapper}>
+                <ActivityIndicator size="large" color="#818CF8" />
+                <View style={styles.loaderGlow} />
+              </View>
 
-            <Text style={styles.statusText}>{statusMessage}</Text>
+              <Text style={styles.statusText}>{statusMessage}</Text>
 
-            {downloadProgress > 0 && (
-              <View style={styles.progressSection}>
-                {/* Progress Bar */}
-                <View style={styles.progressBarContainer}>
-                  <View style={styles.progressBarBg}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: `${downloadProgress}%` },
-                      ]}
-                    >
-                      <View style={styles.progressShimmer} />
+              {downloadProgress > 0 && (
+                <View style={styles.progressSection}>
+                  {/* Progress Bar */}
+                  <View style={styles.progressBarContainer}>
+                    <View style={styles.progressBarBg}>
+                      <View
+                        style={[
+                          styles.progressBarFill,
+                          { width: `${downloadProgress}%` },
+                        ]}
+                      >
+                        <View style={styles.progressShimmer} />
+                      </View>
+                    </View>
+
+                    {/* Progress Percentage Badge */}
+                    <View style={styles.progressBadge}>
+                      <Text style={styles.progressBadgeText}>
+                        {downloadProgress.toFixed(0)}%
+                      </Text>
                     </View>
                   </View>
 
-                  {/* Progress Percentage Badge */}
-                  <View style={styles.progressBadge}>
-                    <Text style={styles.progressBadgeText}>
-                      {downloadProgress.toFixed(0)}%
+                  {/* Stats Grid */}
+                  <View style={styles.statsGrid}>
+                    <View style={styles.statBox}>
+                      <View style={styles.statIconContainer}>
+                        <Text style={styles.statIcon}>📊</Text>
+                      </View>
+                      <Text style={styles.statLabel}>Progress</Text>
+                      <Text style={styles.statValue}>
+                        {downloadProgress.toFixed(1)}%
+                      </Text>
+                    </View>
+
+                    <View style={styles.statBox}>
+                      <View style={styles.statIconContainer}>
+                        <Text style={styles.statIcon}>⚡</Text>
+                      </View>
+                      <Text style={styles.statLabel}>Status</Text>
+                      <Text style={styles.statValue}>Active</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Info Card */}
+              <View style={styles.infoCard}>
+                <View style={styles.infoHeader}>
+                  <View style={styles.infoIconBox}>
+                    <Text style={styles.infoIcon}>ℹ️</Text>
+                  </View>
+                  <Text style={styles.infoTitle}>First Time Setup</Text>
+                </View>
+                <View style={styles.infoDivider} />
+                <Text style={styles.infoText}>
+                  • Model download required on first use{'\n'}• File size: ~460
+                  MB
+                  {'\n'}• One-time process{'\n'}• May take a few minutes
+                </Text>
+              </View>
+            </View>
+          ) : error ? (
+            <View style={styles.errorContainer}>
+              {/* Error Icon */}
+              <View style={styles.errorIconWrapper}>
+                <View style={styles.errorIconBg}>
+                  <Text style={styles.errorIcon}>⚠️</Text>
+                </View>
+                <View style={styles.errorIconGlow} />
+              </View>
+
+              <Text style={styles.errorTitle}>Download Failed</Text>
+              <View style={styles.errorMessageBox}>
+                <Text style={styles.errorMessage}>{error}</Text>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.buttonGroup}>
+                <TouchableOpacity
+                  style={styles.primaryButton}
+                  onPress={handleRetry}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.buttonContent}>
+                    <Text style={styles.buttonIcon}>🔄</Text>
+                    <Text style={styles.buttonText}>Try Again</Text>
+                  </View>
+                  <View style={styles.buttonGlow} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.secondaryButton}
+                  onPress={handleSkip}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.buttonContent}>
+                    <Text style={styles.buttonIcon}>📁</Text>
+                    <Text style={styles.secondaryButtonText}>
+                      Load from Assets
                     </Text>
                   </View>
-                </View>
-
-                {/* Stats Grid */}
-                <View style={styles.statsGrid}>
-                  <View style={styles.statBox}>
-                    <View style={styles.statIconContainer}>
-                      <Text style={styles.statIcon}>📊</Text>
-                    </View>
-                    <Text style={styles.statLabel}>Progress</Text>
-                    <Text style={styles.statValue}>
-                      {downloadProgress.toFixed(1)}%
-                    </Text>
-                  </View>
-
-                  <View style={styles.statBox}>
-                    <View style={styles.statIconContainer}>
-                      <Text style={styles.statIcon}>⚡</Text>
-                    </View>
-                    <Text style={styles.statLabel}>Status</Text>
-                    <Text style={styles.statValue}>Active</Text>
-                  </View>
-                </View>
+                </TouchableOpacity>
               </View>
-            )}
-
-            {/* Info Card */}
-            <View style={styles.infoCard}>
-              <View style={styles.infoHeader}>
-                <View style={styles.infoIconBox}>
-                  <Text style={styles.infoIcon}>ℹ️</Text>
-                </View>
-                <Text style={styles.infoTitle}>First Time Setup</Text>
+            </View>
+          ) : (
+            <View style={styles.progressContainer}>
+              <View style={styles.loaderWrapper}>
+                <ActivityIndicator size="large" color="#818CF8" />
+                <View style={styles.loaderGlow} />
               </View>
-              <View style={styles.infoDivider} />
-              <Text style={styles.infoText}>
-                • Model download required on first use{'\n'}• File size: ~460 MB
-                {'\n'}• One-time process{'\n'}• May take a few minutes
-              </Text>
+              <Text style={styles.statusText}>{statusMessage}</Text>
             </View>
-          </View>
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            {/* Error Icon */}
-            <View style={styles.errorIconWrapper}>
-              <View style={styles.errorIconBg}>
-                <Text style={styles.errorIcon}>⚠️</Text>
-              </View>
-              <View style={styles.errorIconGlow} />
-            </View>
-
-            <Text style={styles.errorTitle}>Download Failed</Text>
-            <View style={styles.errorMessageBox}>
-              <Text style={styles.errorMessage}>{error}</Text>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.buttonGroup}>
-              <TouchableOpacity
-                style={styles.primaryButton}
-                onPress={handleRetry}
-                activeOpacity={0.85}
-              >
-                <View style={styles.buttonContent}>
-                  <Text style={styles.buttonIcon}>🔄</Text>
-                  <Text style={styles.buttonText}>Try Again</Text>
-                </View>
-                <View style={styles.buttonGlow} />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={handleSkip}
-                activeOpacity={0.85}
-              >
-                <View style={styles.buttonContent}>
-                  <Text style={styles.buttonIcon}>📁</Text>
-                  <Text style={styles.secondaryButtonText}>
-                    Load from Assets
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.progressContainer}>
-            <View style={styles.loaderWrapper}>
-              <ActivityIndicator size="large" color="#818CF8" />
-              <View style={styles.loaderGlow} />
-            </View>
-            <Text style={styles.statusText}>{statusMessage}</Text>
-          </View>
-        )}
+          )}
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 };
 

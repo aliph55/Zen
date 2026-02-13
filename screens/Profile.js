@@ -59,7 +59,10 @@ const Profile = ({ navigation }) => {
   ];
 
   return (
-    <>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: '#0f172a' }}
+      edges={['bottom']}
+    >
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
 
       <LinearGradient
@@ -236,7 +239,7 @@ const Profile = ({ navigation }) => {
           </View>
         </View>
       </Modal>
-    </>
+    </SafeAreaView>
   );
 };
 

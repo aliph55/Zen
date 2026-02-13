@@ -8,14 +8,19 @@ import {
   Alert,
   Dimensions,
   StatusBar,
+  Platform,
 } from 'react-native';
 import { useDispatch } from 'react-redux';
 import { setUserInfo, resetUserInfo } from '../redux/userInfo';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import {
+  GoogleSignin,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
 import {
   getAuth,
   signInWithCredential,
   GoogleAuthProvider,
+  onAuthStateChanged,
 } from '@react-native-firebase/auth';
 import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -25,6 +30,7 @@ const { width, height } = Dimensions.get('window');
 const Signin = () => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState(null);
+  const [initializing, setInitializing] = useState(true);
   const dispatch = useDispatch();
   const navigate = useNavigation();
 
@@ -33,10 +39,16 @@ const Signin = () => {
       webClientId:
         '53852373022-th52gtqcb9bah24899cunbl5i6n1bol1.apps.googleusercontent.com',
       offlineAccess: true,
+      forceCodeForRefreshToken: true,
     });
 
-    const authInstance = getAuth();
-    const unsubscribe = authInstance.onAuthStateChanged(firebaseUser => {
+    const auth = getAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, firebaseUser => {
+      console.log(
+        'Auth state changed:',
+        firebaseUser ? 'Logged in' : 'Logged out',
+      );
       setUser(firebaseUser);
 
       if (firebaseUser) {
@@ -51,56 +63,96 @@ const Signin = () => {
             id: firebaseUser.uid || '',
           }),
         );
-        navigate.navigate('Download');
+
+        setTimeout(() => {
+          navigate.navigate('Download');
+        }, 500);
       } else {
         dispatch(resetUserInfo());
+      }
+
+      if (initializing) {
+        setInitializing(false);
       }
     });
 
     return () => unsubscribe();
-  }, [dispatch]);
+  }, [dispatch, initializing, navigate]);
 
   const onGoogleButtonPress = async () => {
     try {
       setLoading(true);
+      console.log('Google Sign-In başlatılıyor...');
+
       await GoogleSignin.hasPlayServices({
         showPlayServicesUpdateDialog: true,
       });
+      console.log('Play Services mevcut');
 
+      // Google Sign In - signIn() zaten önceki oturumu otomatik yönetir
+      console.log('Google Sign-In popup açılıyor...');
       const signInResult = await GoogleSignin.signIn();
-      const idToken = signInResult.data?.idToken;
+      console.log('Google Sign-In başarılı');
 
+      const idToken = signInResult.data?.idToken;
       if (!idToken) {
-        throw new Error('ID Token alınamadı');
+        console.error('ID Token bulunamadı:', signInResult);
+        throw new Error('ID Token alınamadı. Lütfen tekrar deneyin.');
       }
+      console.log('ID Token alındı');
 
       const googleCredential = GoogleAuthProvider.credential(idToken);
-      const authInstance = getAuth();
-      const userCredential = await signInWithCredential(
-        authInstance,
-        googleCredential,
-      );
+      const auth = getAuth();
+      const userCredential = await signInWithCredential(auth, googleCredential);
+      console.log('Firebase giriş başarılı:', userCredential.user.email);
       navigate.navigate('Download');
 
-      console.log('Giriş başarılı:', userCredential?.user);
-      Alert.alert('Başarılı', 'Google ile giriş yapıldı!');
+      Alert.alert(
+        'Hoş Geldiniz! 🎉',
+        `Başarıyla giriş yaptınız: ${userCredential.user.displayName}`,
+        [{ text: 'Tamam' }],
+      );
     } catch (error) {
-      console.error('Google Sign-In hatası:', error);
-      let errorMessage = 'Giriş yapılırken bir hata oluştu';
+      console.error('Google Sign-In HATA:', error);
+      console.error('Hata kodu:', error.code);
+      console.error('Hata mesajı:', error.message);
 
-      if (error.code === 'auth/invalid-credential') {
-        errorMessage = 'Geçersiz kimlik bilgileri';
+      let errorTitle = 'Giriş Hatası';
+      let errorMessage = 'Bir hata oluştu. Lütfen tekrar deneyin.';
+
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        errorTitle = 'İptal Edildi';
+        errorMessage = 'Google ile giriş iptal edildi.';
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        errorTitle = 'İşlem Devam Ediyor';
+        errorMessage = 'Giriş işlemi zaten devam ediyor.';
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        errorTitle = 'Google Play Services Hatası';
+        errorMessage =
+          'Google Play Services bu cihazda kullanılamıyor.\n\n' +
+          '📱 Fiziksel bir cihazda test edin veya\n' +
+          "⚙️ Google Play Services'li bir emülatör kullanın.";
+      } else if (error.code === 'auth/invalid-credential') {
+        errorTitle = 'Geçersiz Kimlik Bilgileri';
+        errorMessage =
+          'Firebase yapılandırması hatalı olabilir.\n\n' +
+          "🔑 SHA-1 parmak izlerini Firebase Console'da kontrol edin.";
       } else if (error.code === 'auth/network-request-failed') {
-        errorMessage = 'İnternet bağlantısı hatası';
+        errorTitle = 'Bağlantı Hatası';
+        errorMessage = 'İnternet bağlantınızı kontrol edin.';
       } else if (
         error.code === 'auth/account-exists-with-different-credential'
       ) {
-        errorMessage = 'Bu hesap farklı bir giriş yöntemi ile kayıtlı';
+        errorTitle = 'Hesap Mevcut';
+        errorMessage =
+          'Bu e-posta adresi farklı bir giriş yöntemi ile kayıtlı.';
       } else if (error.message) {
         errorMessage = error.message;
       }
 
-      Alert.alert('Hata', errorMessage);
+      Alert.alert(errorTitle, errorMessage, [
+        { text: 'Tamam', style: 'cancel' },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -109,10 +161,15 @@ const Signin = () => {
   const signOut = async () => {
     try {
       setLoading(true);
+      console.log('Çıkış yapılıyor...');
+
       await GoogleSignin.signOut();
-      const authInstance = getAuth();
-      await authInstance.signOut();
-      Alert.alert('Başarılı', 'Çıkış yapıldı');
+
+      const auth = getAuth();
+      await auth.signOut();
+
+      console.log('Çıkış başarılı');
+      Alert.alert('Başarılı', 'Çıkış yapıldı', [{ text: 'Tamam' }]);
     } catch (error) {
       console.error('Sign-Out hatası:', error);
       Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu');
@@ -121,6 +178,18 @@ const Signin = () => {
     }
   };
 
+  if (initializing) {
+    return (
+      <LinearGradient
+        colors={['#0F172A', '#1E293B', '#0F172A']}
+        style={styles.container}
+      >
+        <ActivityIndicator size="large" color="#8B5CF6" />
+        <Text style={styles.loadingText}>Yükleniyor...</Text>
+      </LinearGradient>
+    );
+  }
+
   if (user) {
     return (
       <LinearGradient
@@ -128,14 +197,11 @@ const Signin = () => {
         style={styles.container}
       >
         <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-
-        {/* Animated Background Blobs */}
         <View style={styles.blob1} />
         <View style={styles.blob2} />
         <View style={styles.blob3} />
 
         <View style={styles.profileCard}>
-          {/* Avatar */}
           <View style={styles.avatarWrapper}>
             <LinearGradient
               colors={['#8B5CF6', '#EC4899', '#EF4444']}
@@ -150,30 +216,27 @@ const Signin = () => {
             <View style={styles.onlineBadge} />
           </View>
 
-          {/* User Info */}
-          <Text style={styles.welcomeText}>Welcome back,</Text>
+          <Text style={styles.welcomeText}>Hoş geldin,</Text>
           <Text style={styles.userName}>{user.displayName}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
 
-          {/* Stats */}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>24</Text>
-              <Text style={styles.statLabel}>Chats</Text>
+              <Text style={styles.statLabel}>Sohbet</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statValue}>156</Text>
-              <Text style={styles.statLabel}>Messages</Text>
+              <Text style={styles.statLabel}>Mesaj</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statValue}>12</Text>
-              <Text style={styles.statLabel}>Days</Text>
+              <Text style={styles.statLabel}>Gün</Text>
             </View>
           </View>
 
-          {/* Logout Button */}
           <TouchableOpacity
             style={styles.logoutButton}
             onPress={signOut}
@@ -184,7 +247,7 @@ const Signin = () => {
               <ActivityIndicator color="#fff" size="small" />
             ) : (
               <>
-                <Text style={styles.logoutText}>Sign Out</Text>
+                <Text style={styles.logoutText}>Çıkış Yap</Text>
                 <Text style={styles.logoutIcon}>→</Text>
               </>
             )}
@@ -200,14 +263,11 @@ const Signin = () => {
       style={styles.container}
     >
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-
-      {/* Animated Background Blobs */}
       <View style={styles.blob1} />
       <View style={styles.blob2} />
       <View style={styles.blob3} />
 
       <View style={styles.content}>
-        {/* Logo & Title */}
         <View style={styles.header}>
           <LinearGradient
             colors={['#8B5CF6', '#EC4899']}
@@ -217,12 +277,10 @@ const Signin = () => {
           >
             <Text style={styles.logoText}>Z</Text>
           </LinearGradient>
-
           <Text style={styles.title}>ZenAI</Text>
-          <Text style={styles.subtitle}>Your intelligent AI companion</Text>
+          <Text style={styles.subtitle}>Akıllı AI asistanınız</Text>
         </View>
 
-        {/* Feature Cards */}
         <View style={styles.featuresGrid}>
           <View style={styles.featureCard}>
             <LinearGradient
@@ -230,35 +288,32 @@ const Signin = () => {
               style={styles.featureGradient}
             >
               <Text style={styles.featureEmoji}>✨</Text>
-              <Text style={styles.featureTitle}>Smart AI</Text>
-              <Text style={styles.featureDesc}>Advanced intelligence</Text>
+              <Text style={styles.featureTitle}>Akıllı AI</Text>
+              <Text style={styles.featureDesc}>Gelişmiş zeka</Text>
             </LinearGradient>
           </View>
-
           <View style={styles.featureCard}>
             <LinearGradient
               colors={['rgba(236, 72, 153, 0.15)', 'rgba(236, 72, 153, 0.05)']}
               style={styles.featureGradient}
             >
               <Text style={styles.featureEmoji}>🔒</Text>
-              <Text style={styles.featureTitle}>Secure</Text>
-              <Text style={styles.featureDesc}>Privacy first</Text>
+              <Text style={styles.featureTitle}>Güvenli</Text>
+              <Text style={styles.featureDesc}>Gizlilik öncelik</Text>
             </LinearGradient>
           </View>
-
           <View style={styles.featureCard}>
             <LinearGradient
               colors={['rgba(239, 68, 68, 0.15)', 'rgba(239, 68, 68, 0.05)']}
               style={styles.featureGradient}
             >
               <Text style={styles.featureEmoji}>⚡</Text>
-              <Text style={styles.featureTitle}>Fast</Text>
-              <Text style={styles.featureDesc}>Instant responses</Text>
+              <Text style={styles.featureTitle}>Hızlı</Text>
+              <Text style={styles.featureDesc}>Anında yanıt</Text>
             </LinearGradient>
           </View>
         </View>
 
-        {/* Google Sign In Button */}
         <TouchableOpacity
           style={styles.googleButton}
           onPress={onGoogleButtonPress}
@@ -276,19 +331,25 @@ const Signin = () => {
                 <View style={styles.googleIconWrapper}>
                   <Text style={styles.googleG}>G</Text>
                 </View>
-                <Text style={styles.googleButtonText}>
-                  Continue with Google
-                </Text>
+                <Text style={styles.googleButtonText}>Google ile Devam Et</Text>
               </>
             )}
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Terms */}
+        {__DEV__ && (
+          <View style={styles.debugInfo}>
+            <Text style={styles.debugText}>
+              🔧 {Platform.OS === 'android' ? 'Android' : 'iOS'} - Debug Mode
+            </Text>
+          </View>
+        )}
+
         <Text style={styles.termsText}>
-          By continuing, you agree to our{'\n'}
-          <Text style={styles.termsLink}>Terms</Text> and{' '}
-          <Text style={styles.termsLink}>Privacy Policy</Text>
+          Devam ederek{'\n'}
+          <Text style={styles.termsLink}>Kullanım Şartları</Text> ve{' '}
+          <Text style={styles.termsLink}>Gizlilik Politikası</Text>'nı kabul
+          etmiş olursunuz
         </Text>
       </View>
     </LinearGradient>
@@ -299,8 +360,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-
-  // Animated Blobs
+  loadingText: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
   blob1: {
     position: 'absolute',
     width: 300,
@@ -331,15 +396,12 @@ const styles = StyleSheet.create({
     right: -50,
     opacity: 0.6,
   },
-
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
   },
-
-  // Header
   header: {
     alignItems: 'center',
     marginBottom: 48,
@@ -376,8 +438,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     letterSpacing: 0.5,
   },
-
-  // Features Grid
   featuresGrid: {
     flexDirection: 'row',
     gap: 12,
@@ -411,8 +471,6 @@ const styles = StyleSheet.create({
     color: '#64748B',
     fontWeight: '500',
   },
-
-  // Google Button
   googleButton: {
     width: '100%',
     marginBottom: 20,
@@ -451,8 +509,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-
-  // Terms
+  debugInfo: {
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.2)',
+  },
+  debugText: {
+    color: '#8B5CF6',
+    fontSize: 11,
+    fontWeight: '600',
+  },
   termsText: {
     fontSize: 11,
     color: '#475569',
@@ -463,8 +533,6 @@ const styles = StyleSheet.create({
     color: '#8B5CF6',
     fontWeight: '700',
   },
-
-  // Profile Card
   profileCard: {
     width: width * 0.9,
     maxWidth: 400,
@@ -536,8 +604,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     fontWeight: '500',
   },
-
-  // Stats
   statsContainer: {
     flexDirection: 'row',
     width: '100%',
@@ -569,8 +635,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     marginHorizontal: 12,
   },
-
-  // Logout Button
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',

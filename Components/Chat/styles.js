@@ -1,6 +1,32 @@
 import { StyleSheet, Platform } from 'react-native';
 
 export default StyleSheet.create({
+  // styles.js
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end', // ← multiline olduğunda daha iyi hizalanır
+    paddingHorizontal: 12, // ← SOL ve SAĞ boşluk (en önemli kısım)
+    paddingTop: 10, // ↑ yukarıdan biraz nefes alma
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24, // Android'de daha fazla alt boşluk
+    backgroundColor: '#1e293b',
+    borderTopWidth: 1,
+    borderTopColor: '#334155',
+    gap: 10, // text input ile buton arası mesafe
+    elevation: 10, // biraz daha belirgin gölge
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  inputContainerAndroid: {
+    padding: 0,
+    paddingBottom: 16,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
   // Navigation header stilleri
   navigationHeaderTitle: {
     flexDirection: 'row',
@@ -297,26 +323,24 @@ export default StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f172a',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#475569', // biraz daha yumuşak gri
     borderRadius: 24,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16, // ← içerde daha rahat yazı alanı
     paddingVertical: 12,
+    paddingTop: 14, // ← üstten biraz daha ferah
     fontSize: 16,
-    maxHeight: 120,
+    maxHeight: 140, // biraz daha büyüyebilsin
+    minHeight: 48, // tek satırda bile çok küçülmesin
     color: '#f8fafc',
   },
   sendButton: {
     backgroundColor: '#3b82f6',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44, // 48 → 44
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 3,
+    // ...
   },
   sendButtonDisabled: {
     backgroundColor: '#334155',

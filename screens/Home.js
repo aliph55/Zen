@@ -151,14 +151,16 @@ const Home = ({ navigation }) => {
             <Text style={styles.logo}>ZenAI</Text>
             <View style={styles.logoDot} />
           </View>
-          <TouchableOpacity
+          {/**
+           <TouchableOpacity
             style={styles.profileButton}
-            onPress={() => navigation.navigate('Profile')}
+            onPress={() => navigation.navigate('About')}
           >
             <View style={styles.profileIconBg}>
               <Icon name="user" size={20} color="#6366F1" />
             </View>
           </TouchableOpacity>
+           */}
         </View>
       </View>
 
@@ -341,11 +343,11 @@ const Home = ({ navigation }) => {
 
           <TouchableOpacity
             style={styles.navItem}
-            onPress={() => navigation.navigate('Profile')}
+            onPress={() => navigation.navigate('About')}
             activeOpacity={0.8}
           >
-            <Icon name="user" size={24} color="#64748B" />
-            <Text style={styles.navLabel}>Profile</Text>
+            <Icon name="book-open" size={24} color="#64748B" />
+            <Text style={styles.navLabel}>About</Text>
           </TouchableOpacity>
         </View>
       </View>

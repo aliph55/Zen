@@ -95,3 +95,36 @@ To learn more about React Native, take a look at the following resources:
 - [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
 - [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
 - [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      {modelLoadError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Hata: {modelLoadError}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadModel}>
+            <Text style={styles.retryButtonText}>Tekrar Dene</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <MessageList
+        messages={messages}
+        modelLoaded={modelLoaded}
+        isStreaming={isStreaming}
+        scrollViewRef={scrollViewRef}
+        currentStreamingMessage={currentStreamingMessage}
+        streamingComplete={streamingComplete}
+      />
+      <ChatInput
+        inputText={inputText}
+        setInputText={setInputText}
+        modelLoaded={modelLoaded}
+        isLoading={isLoading}
+        isStreaming={isStreaming}
+        sendMessage={sendMessage}
+      />
+      <GroupNameModal
+        isGroupNameModalVisible={isGroupNameModalVisible}
+        setGroupNameModalVisible={setGroupNameModalVisible}
+        newGroupName={newGroupName}
+        setNewGroupName={setNewGroupName}
+        updateGroupName={updateGroupName}
+      />

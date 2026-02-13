@@ -1,6 +1,7 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
+apply plugin: "com.google.gms.google-services"
 
 react {
     autolinkLibrariesWithApp()
@@ -20,15 +21,21 @@ android {
         applicationId "com.zenai"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 22
-        versionName "2.90"
+        versionCode 37
+        versionName "3.04"
         
-        // 16 KB sayfa boyutu desteği - BURAYA TAŞINDI
         manifestPlaceholders = [
-            'android.app.use_maximum_page_size': 'true'
-        ,        appAuthRedirectScheme: 'com.zenai'
-
+            appAuthRedirectScheme: 'com.googleusercontent.apps.53852373022-9atpf2mdvt5jmg269b79fakt73670sb7'
         ]
+          lintOptions {
+        disable 'Deprecation'
+    }
+        // Native library'ler için 16 KB desteği
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
+
+        
     }
     
     signingConfigs {
@@ -67,6 +74,8 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+     implementation platform('com.google.firebase:firebase-bom:32.7.0')
+    implementation 'com.google.firebase:firebase-auth'
 }
 
 apply plugin: 'com.google.gms.google-services'
